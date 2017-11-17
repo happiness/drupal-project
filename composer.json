@@ -1,6 +1,6 @@
 {
-    "name": "drupal-composer/drupal-project",
-    "description": "Project template for Drupal 8 projects with composer",
+    "name": "happiness/drupal-project",
+    "description": "Project template for a Happiness Drupal 8 projects with composer",
     "type": "project",
     "license": "GPL-2.0+",
     "authors": [
