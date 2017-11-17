@@ -1,0 +1,6 @@
+site_name: Drupal project
+theme: readthedocs
+pages:
+  - Home: index.md
+  - Development environment: development-environment.md
+  - Testing with CasperJS: testing-casperjs.md

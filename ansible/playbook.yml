@@ -1,0 +1,141 @@
+---
+
+- hosts: all
+  become: true
+
+  vars:
+    mysql_root_pass: 'root'
+    php_version: '7.0'
+    drush_launcher_version: '0.4.3'
+
+  tasks:
+    - name: "FIX: Ubuntu 16.04 LTS doesn't come with certain modules required by Ansible"
+      raw: apt-get install python-minimal aptitude -y
+      become: true
+      become_user: root
+      become_method: sudo
+
+    - name: Add Nodesource keys
+      apt_key: url=https://deb.nodesource.com/gpgkey/nodesource.gpg.key state=present
+
+    - name: Add Nodesource apt sources
+      apt_repository: repo='{{ item }}' state=present
+      with_items:
+        - 'deb https://deb.nodesource.com/node_6.x xenial main'
+        - 'deb-src https://deb.nodesource.com/node_6.x xenial main'
+
+    - name: Install NodeJS and NPM
+      apt: name='{{ item }}' state=latest update_cache=yes
+      with_items:
+        - nodejs
+
+    - name: Add ondrej PHP repository
+      apt_repository: repo='ppa:ondrej/php' state=present
+
+    - name: Add ondrej Apache repository
+      apt_repository: repo='ppa:ondrej/apache2' state=present
+
+    - name: Update apt repository
+      apt: upgrade=yes update_cache=yes cache_valid_time=3600
+
+    - name: Install various packages
+      apt: name={{item}} state=installed
+      with_items:
+        - unzip
+        - git
+        - build-essential
+        - chrpath
+        - libssl-dev
+        - libxft-dev
+        - libfreetype6
+        - libfreetype6-dev
+        - libfontconfig1
+        - libfontconfig1-dev
+
+    - name: Install PhantomJS
+      get_url:
+        url: 'https://github.com/Medium/phantomjs/releases/download/v2.1.1/phantomjs-2.1.1-linux-x86_64.tar.bz2'
+        dest: '/tmp/phantomjs.tar.bz2'
+        force: true
+
+    - shell: "cd /tmp && tar xvjf /tmp/phantomjs.tar.bz2 -C /usr/local/bin/ --overwrite --wildcards '**/bin/phantomjs' --strip-components=2"
+
+    - file: path=/usr/local/bin/phantomjs state=file mode=0755
+
+    - name: Install Apache
+      apt: name=apache2 state=installed
+
+    - name: Create default Apache vhost
+      template:
+        src: vhosts.conf.j2
+        dest: /etc/apache2/sites-available/000-default.conf
+        owner: root
+        group: root
+        mode: 0644
+      notify: Restart Apache
+
+    - name: Set MySQL root password before installing
+      debconf: name='mysql-server' question='mysql-server/root_password' value='{{mysql_root_pass | quote}}' vtype='password'
+
+    - name: Confirm MySQL root password before installing
+      debconf: name='mysql-server' question='mysql-server/root_password_again' value='{{mysql_root_pass | quote}}' vtype='password'
+
+    - name: Install MySQL
+      apt: name='mysql-server' state=installed
+
+    - name: Install PHP packages
+      apt: name={{item}} state=installed
+      with_items:
+           - 'php{{php_version}}'
+           - 'php{{php_version}}-mcrypt'
+           - 'php{{php_version}}-mysql'
+           - 'php{{php_version}}-pdo-mysql'
+           - 'php{{php_version}}-dom'
+           - 'php{{php_version}}-gd'
+           - 'php{{php_version}}-intl'
+           - 'php{{php_version}}-xdebug'
+           - 'php{{php_version}}-mbstring'
+           - 'php{{php_version}}-curl'
+           - 'libapache2-mod-php{{php_version}}'
+
+    - name: Configure PHP settings
+      ini_file: path=/etc/php/{{php_version}}/apache2/php.ini section=PHP option={{item.option}} value={{item.value}}
+      with_items:
+        - { option: 'memory_limit', value: '512MB' }
+        - { option: 'php_upload_max_filesize', value: '256M' }
+        - { option: 'display_errors', value: 'On' }
+
+    - name: Configure Xdebug
+      template:
+        src: xdebug.ini.j2
+        dest: '/etc/php/{{php_version}}/mods-available/xdebug.ini'
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: Configure CRON jbos
+      cron:
+        name: 'Drupal CRON'
+        minute: '0'
+        hour: '*'
+        job: 'drush --root=/var/www/web core-cron'
+
+    - name: Enable mod_rewrite for Apache
+      apache2_module:
+        state: present
+        name: rewrite
+      notify: Restart Apache
+
+    - name: Install composer
+      get_url: url=https://getcomposer.org/composer.phar dest=/usr/local/bin/composer
+
+    - file: path=/usr/local/bin/composer state=file mode=0755
+
+    - name: Install Drush
+      get_url: url=https://github.com/drush-ops/drush-launcher/releases/download/{{drush_launcher_version}}/drush.phar dest=/usr/local/bin/drush
+
+    - file: path=/usr/local/bin/drush state=file mode=0755
+
+  handlers:
+    - name: Restart Apache
+      service: name=apache2 state=restarted

@@ -1,0 +1,4 @@
+node_modules/
+casperjs/testdata.json
+screenshots/*
+captures/
