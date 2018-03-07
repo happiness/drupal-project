@@ -6,7 +6,6 @@
   vars:
     mysql_root_pass: 'root'
     php_version: '7.0'
-    drush_launcher_version: '0.4.3'
 
   tasks:
     - name: "FIX: Ubuntu 16.04 LTS doesn't come with certain modules required by Ansible"
@@ -118,7 +117,7 @@
         name: 'Drupal CRON'
         minute: '0'
         hour: '*'
-        job: 'drush --root=/var/www/web core-cron'
+        job: '/var/www/vendor/drush/drush/drush core:cron'
 
     - name: Enable mod_rewrite for Apache
       apache2_module:
@@ -130,11 +129,6 @@
       get_url: url=https://getcomposer.org/composer.phar dest=/usr/local/bin/composer
 
     - file: path=/usr/local/bin/composer state=file mode=0755
-
-    - name: Install Drush
-      get_url: url=https://github.com/drush-ops/drush-launcher/releases/download/{{drush_launcher_version}}/drush.phar dest=/usr/local/bin/drush
-
-    - file: path=/usr/local/bin/drush state=file mode=0755
 
   handlers:
     - name: Restart Apache
