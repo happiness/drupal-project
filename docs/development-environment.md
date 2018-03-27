@@ -24,7 +24,7 @@ vagrant suspend
 Edit your local `/etc/hosts` file and add:
 
 ```
-192.168.33.11   hostname.dev www.hostname.dev
+192.168.33.11   hostname.local www.hostname.local
 ```
 
 ## Connect using SSH
@@ -79,7 +79,7 @@ We need to setup a _Deployment_ and a _Remote interpreter_.
 2. Click the small `+`-button on the top left side of the window
 3. Enter a name for the deployment and select **SFTP**
 4. Enter values for host:
-    * SFTP host: `www.project.dev`
+    * SFTP host: `www.project.local`
     * Port: `22`
     * Root path: `/`
 5. Enter values for connection to the Vagrant instance:
@@ -109,6 +109,21 @@ To make sure Xdebug is connecting to PhpStorm set a breakpoint, for example
 in the `index.php` file, and enable debug by clicking _Start listening for
 PHP Debug Connections_. Load the project in your browser a check if debug
 data is displayed in PhpStorm.
+
+## Improving performance
+
+If you feel the performance of the development environment is not enough you
+can use PHPStorm's *Deployment: Automatic upload* to upload your files to the
+VM's own file system instead of using VirtualBox Synced folders. This will get
+you about 50% improved performance.
+
+To enable *Automatic upload* first setup a deployment as described above. Then
+uncheck the setting _Add packaged as libraries_ under *Preferences > Languages &
+frameworks > PHP > Composer* to make sure the `/vendor` folder is uploaded.
+
+Then upload the files using *Tools > Deployment > Upload to...* and then
+check the option *Automatic upload* under *Tools > Deployment > Automatic
+upload (always)*.
 
 ## Protect development site
 

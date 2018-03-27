@@ -25,3 +25,4 @@
 
 # Ignore DeployHQ files
 /Deployfile
+/Vagrantfile.local
