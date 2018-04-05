@@ -1,0 +1,14 @@
+.gitignore
+.env.example
+.travis.yml
+example.Deployfile
+example.Vagrantfile.local
+**LICENSE.txt
+phpunit.xml.dist
+**README.txt
+web/.csslintrc
+web/.editorconfig
+web/.eslintignore
+web/.eslintrc
+web/.gitattributes
+ansible/
