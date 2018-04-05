@@ -1,6 +1,6 @@
 # Happiness Composer template for Drupal projects
 
-This project template should provide a kickstart for managing your site
+This project template provides a starter kit for managing your site
 dependencies with [Composer](https://getcomposer.org/).
 
 
@@ -40,6 +40,7 @@ When installing the given `composer.json` some tasks are taken care of:
 * Creates `web/sites/default/files`-directory.
 * Latest version of drush is installed locally for use at `vendor/bin/drush`.
 * Latest version of DrupalConsole is installed locally for use at `vendor/bin/drupal`.
+* Creates environment variables based on your .env file. See [.env.example](.env.example).
 
 ## Updating Drupal Core
 
@@ -52,7 +53,7 @@ new release of Drupal core.
 
 Follow the steps below to update your core files.
 
-1. Run `composer update drupal/core --with-dependencies` to update Drupal Core and its dependencies.
+1. Run `composer update drupal/core webflo/drupal-core-require-dev symfony/* --with-dependencies` to update Drupal Core and its dependencies.
 1. Run `git diff` to determine if any of the scaffolding files have changed.
    Review the files for any changes and restore any customizations to
   `.htaccess` or `robots.txt`.

@@ -25,3 +25,6 @@
 
 # Ignore DeployHQ files
 /Deployfile
+
+# Ignore .env files as they are personal
+/.env
