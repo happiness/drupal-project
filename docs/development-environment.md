@@ -132,3 +132,13 @@ included `/.htpasswd` file with the following credentials:
 
 * Username: beta
 * Password: beta
+
+## Mail
+
+All mail sent from the development environment will be handled by [MailHog](https://github.com/mailhog/MailHog)
+and can be viewed by visiting http://project.local:8025 in your browser.
+
+## Logs
+
+Logs from Apache and MySQL can be accessed via [Pimp my log](https://github.com/potsky/PimpMyLog)
+at http://logs.project.local.

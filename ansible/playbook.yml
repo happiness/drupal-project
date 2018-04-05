@@ -168,6 +168,18 @@
 
     - file: path=/usr/local/bin/composer state=file mode=0755
 
+    - name: Install Pimp my log
+      git: repo='https://github.com/potsky/PimpMyLog.git' dest=/opt/pimpmylog
+      notify: Restart Apache
+
+    - name: Configure Pimp my log
+      template:
+        src: config.user.php.j2
+        dest: '/opt/pimpmylog/config.user.php'
+        owner: root
+        group: root
+        mode: 0644
+
   handlers:
     - name: Restart Apache
       service: name=apache2 state=restarted

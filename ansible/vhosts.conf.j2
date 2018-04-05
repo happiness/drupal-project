@@ -6,3 +6,13 @@
         Require all granted
     </Directory>
 </VirtualHost>
+
+<VirtualHost *:80>
+    ServerName logs.project.local
+    DocumentRoot "/opt/pimpmylog"
+    AccessFileName .htaccess
+    <Directory "/opt/pimpmylog">
+        AllowOverride All
+        Require all granted
+    </Directory>
+</VirtualHost>
