@@ -13,10 +13,6 @@ Vagrant.configure("2") do |config|
     config.vm.box = "bento/ubuntu-16.04"
 
     config.vm.network "private_network", ip: "192.168.33.11"
-    config.vm.synced_folder ".", "/var/www", :mount_options => ["dmode=777", "fmode=777"]
-
-    # Optional NFS. Make sure to remove other synced_folder line too
-    #config.vm.synced_folder ".", "/var/www", :nfs => { :mount_options => ["dmode=777","fmode=666"] }
 
     config.ssh.insert_key = false
     config.ssh.private_key_path = ["~/.ssh/id_rsa", "~/.vagrant.d/insecure_private_key"]
@@ -28,7 +24,10 @@ Vagrant.configure("2") do |config|
       ansible.playbook = "ansible/playbook.yml"
     end
 
-    # Provision static IP manually
-    #config.vm.provision "shell", run: "always", inline: "ifconfig enp0s8 192.168.33.11 netmask 255.255.255.0 up"
+    # Allow an untracked Vagrantfile to modify the configurations
+    project_dir = File.dirname(File.expand_path(__FILE__))
+    [project_dir].uniq.each do |dir|
+        eval File.read "#{dir}/Vagrantfile.local" if File.exist?("#{dir}/Vagrantfile.local")
+    end
 
 end

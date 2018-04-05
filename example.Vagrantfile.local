@@ -1,0 +1,10 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+config.vm.synced_folder ".", "/var/www", :mount_options => ["dmode=777", "fmode=777"]
+
+# Optional NFS. Make sure to remove other synced_folder line too
+#config.vm.synced_folder ".", "/var/www", :nfs => { :mount_options => ["dmode=777","fmode=666"] }
+
+# Provision static IP manually
+#config.vm.provision "shell", run: "always", inline: "ifconfig enp0s8 192.168.33.11 netmask 255.255.255.0 up"
