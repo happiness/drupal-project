@@ -97,4 +97,14 @@ class ScriptHandler {
     }
   }
 
+  /**
+   * Remove .git folders in contrib modules, themes and profiles.
+   */
+  public static function removeGitDirectories() {
+    $drupalFinder = new DrupalFinder();
+    $drupalFinder->locateRoot(getcwd());
+    $drupalRoot = $drupalFinder->getDrupalRoot();
+    exec('find ' . $drupalRoot . ' -name \'.git\' | xargs rm -rf');
+  }
+
 }
