@@ -6,11 +6,8 @@ Vagrant.configure("2") do |config|
     # We use the bento namespace for Ubuntu boxes as the ubuntu one is broken.
     # See https://github.com/hashicorp/vagrant/issues/7155#issuecomment-228568200
 
-    # Use Ubuntu Trusty, 14.04 LTS (PHP5)
-    #config.vm.box = "bento/ubuntu-14.04"
-
     # Use Ubuntu Xenial, 16.04 LTS (PHP7)
-    config.vm.box = "bento/ubuntu-16.04"
+    config.vm.box = "bento/ubuntu-18.04"
 
     config.vm.network "private_network", ip: "192.168.33.11"
 
