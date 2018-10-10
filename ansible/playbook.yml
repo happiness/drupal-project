@@ -24,9 +24,7 @@
         - 'deb-src https://deb.nodesource.com/node_6.x xenial main'
 
     - name: Install NodeJS and NPM
-      apt: name='{{ item }}' state=latest update_cache=yes
-      with_items:
-        - nodejs
+      apt: name=nodejs state=latest update_cache=yes
 
     - name: Add ondrej PHP repository
       apt_repository: repo='ppa:ondrej/php' state=present
@@ -38,8 +36,10 @@
       apt: upgrade=yes update_cache=yes cache_valid_time=3600
 
     - name: Install various packages
-      apt: name={{item}} state=installed
-      with_items:
+      apt:
+        name: "{{ packages }}"
+      vars:
+        packages:
         - unzip
         - git
         - build-essential
@@ -94,7 +94,7 @@
     - file: path=/usr/local/bin/phantomjs state=file mode=0755
 
     - name: Install Apache
-      apt: name=apache2 state=installed
+      apt: name=apache2 state=present
 
     - name: Create default Apache vhost
       template:
@@ -112,22 +112,23 @@
       debconf: name='mysql-server' question='mysql-server/root_password_again' value='{{mysql_root_pass | quote}}' vtype='password'
 
     - name: Install MySQL
-      apt: name='mysql-server' state=installed
+      apt: name='mysql-server' state=present
 
     - name: Install PHP packages
-      apt: name={{item}} state=installed
-      with_items:
-           - 'php{{php_version}}'
-           - 'php{{php_version}}-mcrypt'
-           - 'php{{php_version}}-mysql'
-           - 'php{{php_version}}-pdo-mysql'
-           - 'php{{php_version}}-dom'
-           - 'php{{php_version}}-gd'
-           - 'php{{php_version}}-intl'
-           - 'php{{php_version}}-xdebug'
-           - 'php{{php_version}}-mbstring'
-           - 'php{{php_version}}-curl'
-           - 'libapache2-mod-php{{php_version}}'
+      apt:
+        name: "{{ packages }}"
+      vars:
+        packages:
+        - 'php{{php_version}}'
+        - 'php{{php_version}}-mysql'
+        - 'php{{php_version}}-pdo-mysql'
+        - 'php{{php_version}}-dom'
+        - 'php{{php_version}}-gd'
+        - 'php{{php_version}}-intl'
+        - 'php{{php_version}}-xdebug'
+        - 'php{{php_version}}-mbstring'
+        - 'php{{php_version}}-curl'
+        - 'libapache2-mod-php{{php_version}}'
 
     - name: Configure PHP settings
       ini_file: path=/etc/php/{{php_version}}/apache2/php.ini section={{item.section}} option={{item.option}} value={{item.value}}
