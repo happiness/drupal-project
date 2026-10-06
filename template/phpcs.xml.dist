@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<ruleset name="project">
+  <description>Drupal coding standards for custom code.</description>
+  <file>web/modules/custom</file>
+  <file>web/themes/custom</file>
+  <arg name="extensions" value="php,module,inc,install,test,profile,theme,css,info,txt,yml"/>
+  <rule ref="Drupal"/>
+  <rule ref="DrupalPractice"/>
+</ruleset>
