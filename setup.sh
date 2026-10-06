@@ -88,6 +88,16 @@ ddev composer config optimize-autoloader true
 ddev composer require drush/drush
 ddev composer config allow-plugins.drupal/ai_best_practices true
 ddev composer require --dev drupal/ai_best_practices:@dev
+
+# ai_best_practices syncs skills to .agents/skills; expose them to Claude Code too.
+mkdir -p .claude
+if [[ -e .claude/skills || -L .claude/skills ]]; then
+  echo "  skip  .claude/skills (exists)"
+else
+  ln -s ../.agents/skills .claude/skills
+  echo "  link  .claude/skills -> ../.agents/skills"
+fi
+
 # Match core-dev to the installed drupal/core-recommended major version.
 CORE="$(ddev composer show drupal/core-recommended | sed -n 's/^versions *: *\* *\([0-9]*\)\..*/\1/p' | head -1)"
 [[ -n "$CORE" ]] || { echo "Could not detect drupal/core-recommended version" >&2; exit 1; }
