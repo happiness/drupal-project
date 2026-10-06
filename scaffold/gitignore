@@ -24,3 +24,8 @@
 *.sql.gz
 .phpunit.result.cache
 .phpunit.cache/
+
+# Scaffolded testing config (managed via assets/scaffold)
+phpcs.xml
+phpstan.neon
+phpunit.xml

@@ -112,6 +112,16 @@ main() {
     echo "  link  .claude/skills -> ../.agents/skills"
   fi
 
+  # The scaffolded .gitignore is never overwritten. If the project already has one,
+  # append ignore rules for the scaffolded testing config instead.
+  if [[ -f .gitignore ]]; then
+    echo "==> Appending testing config to existing .gitignore"
+    [[ -n "$(tail -c1 .gitignore)" ]] && echo >> .gitignore
+    for p in phpcs.xml phpstan.neon phpunit.xml; do
+      grep -qxF "$p" .gitignore || { echo "$p" >> .gitignore; echo "  add   $p"; }
+    done
+  fi
+
   echo "==> Mapping scaffold files in composer.json"
   for f in "${SCAFFOLD_FILES[@]}"; do
     dest="$f"; [[ "$f" == gitignore ]] && dest=.gitignore # stored without the dot in scaffold/
