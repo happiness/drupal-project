@@ -1,0 +1,26 @@
+# Composer-managed code
+/vendor/
+/web/core/
+/web/modules/contrib/
+/web/themes/contrib/
+/web/profiles/contrib/
+/web/libraries/
+/drush/contrib/
+/recipes/*
+!/recipes/README.txt
+
+# Drupal runtime files
+/web/sites/*/files/
+/web/sites/*/private/
+/web/sites/*/settings.local.php
+/web/sites/*/services.local.yml
+/web/sites/simpletest/
+
+# Local environment
+.env
+.idea/
+.vscode/
+*.sql
+*.sql.gz
+.phpunit.result.cache
+.phpunit.cache/

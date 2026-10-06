@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#ddev-silent-no-warn
+
+## Description: Run Drupal CLI.
+## Usage: dr
+## Example: "ddev dr"
+## HostWorkingDir: false
+
+./vendor/bin/dr "$@"

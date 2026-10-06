@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#ddev-silent-no-warn
+
+## Description: Run PHPStan. Uses the config file ./phpstan.neon
+## Usage: phpstan
+## Example: "ddev phpstan"
+## HostWorkingDir: false
+
+./vendor/bin/phpstan

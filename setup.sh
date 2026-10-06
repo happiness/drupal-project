@@ -3,137 +3,114 @@
 # Throwaway Drupal best-practice setup for a fresh DDEV Drupal project.
 #
 # Run from the project root (where .ddev/ and composer.json live), then delete it:
-#   curl -fsSL <url>/setup.sh | bash     # or: bash setup.sh
+#   curl -fsSL https://raw.githubusercontent.com/happiness/drupal-project/main/setup.sh | bash
+#   (or: bash /path/to/this/repo/setup.sh, which uses the local scaffold/ directory)
 #
-# Prerequisite (standard DDEV quickstart):
+# Prerequisite:
 #   mkdir my-site && cd my-site
 #   ddev config --project-type=drupal11 --docroot=web
-#   ddev composer create-project drupal/recommended-project
+# If there is no composer.json yet, the script runs
+# `ddev composer create-project drupal/recommended-project`; if there is one but no
+# vendor/ directory, it runs `ddev composer install`.
 #
-# Options: --no-dev-tools   skip phpcs/phpstan tooling
-#          --install        run drush site:install afterwards
+# Options: --install   run drush site:install afterwards
 set -euo pipefail
 
-DEV_TOOLS=1
+SCAFFOLD_FILES=(phpcs.xml phpstan.neon phpunit.xml gitignore)
+DDEV_COMMANDS=(web/dr web/phpcbf web/phpcs web/phpstan web/phpunit)
+SCAFFOLD_URL="${SCAFFOLD_URL:-https://raw.githubusercontent.com/happiness/drupal-project/main/scaffold}"
+# Local scaffold/ next to the script, if run from a clone (empty when piped from curl).
+SCAFFOLD_SRC=""
+if [[ -n "${BASH_SOURCE[0]:-}" && -d "$(dirname "${BASH_SOURCE[0]}")/scaffold" ]]; then
+  SCAFFOLD_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/scaffold"
+fi
+
 INSTALL=0
 for arg in "$@"; do
   case "$arg" in
-    --no-dev-tools) DEV_TOOLS=0 ;;
     --install) INSTALL=1 ;;
-    -h|--help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "Unknown option: $arg" >&2; exit 1 ;;
   esac
 done
 
 command -v ddev >/dev/null || { echo "ddev is required" >&2; exit 1; }
 [[ -d .ddev ]] || { echo "No .ddev/ here. Run 'ddev config --project-type=drupal11 --docroot=web' first." >&2; exit 1; }
-grep -q '"drupal/core-recommended"' composer.json 2>/dev/null \
-  || { echo "No Drupal project found. Run 'ddev composer create-project drupal/recommended-project' first." >&2; exit 1; }
 
 # Docroot as configured in DDEV (default: web).
 DOCROOT="$(sed -n 's/^docroot: *//p' .ddev/config.yaml | tr -d '"' | head -1)"
 DOCROOT="${DOCROOT:-web}"
 
-write() { # write <path> ; content on stdin; never overwrites existing files
-  if [[ -e "$1" ]]; then echo "  skip  $1 (exists)"; cat >/dev/null; return; fi
-  mkdir -p "$(dirname "$1")"; cat > "$1"; echo "  write $1"
-}
-
 echo "==> Starting DDEV"
 ddev start
+
+if [[ ! -f composer.json ]]; then
+  echo "==> Creating Drupal project (drupal/recommended-project)"
+  ddev composer create-project drupal/recommended-project
+elif [[ ! -d vendor ]]; then
+  echo "==> Installing Composer dependencies"
+  ddev composer install
+fi
+grep -q '"drupal/core-recommended"' composer.json \
+  || { echo "composer.json does not require drupal/core-recommended" >&2; exit 1; }
+
+echo "==> Scaffold files"
+mkdir -p assets/scaffold
+for f in "${SCAFFOLD_FILES[@]}"; do
+  [[ -e "assets/scaffold/$f" ]] && continue
+  if [[ -n "$SCAFFOLD_SRC" ]]; then
+    cp "$SCAFFOLD_SRC/$f" "assets/scaffold/$f"
+  else
+    curl -fsSL "$SCAFFOLD_URL/$f" -o "assets/scaffold/$f"
+  fi
+done
+PROJECT_URL="$(ddev exec 'echo -n "$DDEV_PRIMARY_URL"' | tr -d '\r')"
+sed -i "s|%DDEV_PROJECT_URL%|$PROJECT_URL|g" assets/scaffold/phpunit.xml
+echo "  assets/scaffold ready (DDEV URL: $PROJECT_URL)"
+
+echo "==> DDEV commands"
+for c in "${DDEV_COMMANDS[@]}"; do
+  dest=".ddev/commands/$c"
+  [[ -e "$dest" ]] && { echo "  skip  $dest (exists)"; continue; }
+  mkdir -p "$(dirname "$dest")"
+  if [[ -n "$SCAFFOLD_SRC" ]]; then
+    cp "$SCAFFOLD_SRC/ddev/commands/$c" "$dest"
+  else
+    curl -fsSL "$SCAFFOLD_URL/ddev/commands/$c" -o "$dest"
+  fi
+  chmod +x "$dest"
+  echo "  write $dest"
+done
 
 echo "==> Composer"
 ddev composer config sort-packages true
 ddev composer config optimize-autoloader true
 ddev composer require drush/drush
-if [[ $DEV_TOOLS -eq 1 ]]; then
-  ddev composer config allow-plugins.phpstan/extension-installer true
-  ddev composer config allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
-  # Match core-dev to the installed core version, allowing dependency updates.
-  CORE="$(ddev composer show drupal/core-recommended | sed -n 's/^versions *: *\* *\([0-9]*\)\..*/\1/p' | head -1)"
-  CORE="${CORE:-11}"
-  ddev composer require --dev -W "drupal/core-dev:^$CORE" mglaman/phpstan-drupal \
-    phpstan/extension-installer phpstan/phpstan-deprecation-rules
-fi
+ddev composer config allow-plugins.drupal/ai_best_practices true
+ddev composer require --dev drupal/ai_best_practices:@dev
+# Match core-dev to the installed drupal/core-recommended major version.
+CORE="$(ddev composer show drupal/core-recommended | sed -n 's/^versions *: *\* *\([0-9]*\)\..*/\1/p' | head -1)"
+[[ -n "$CORE" ]] || { echo "Could not detect drupal/core-recommended version" >&2; exit 1; }
+ddev composer require "drupal/core-dev:^$CORE" --dev -W
+ddev composer config repositories.happiness-ai-skills vcs git@github.com:happiness/ai-skills.git
+ddev composer require happiness/ai-skills:^1.0
+
+echo "==> Mapping scaffold files in composer.json"
+for f in "${SCAFFOLD_FILES[@]}"; do
+  dest="$f"; [[ "$f" == gitignore ]] && dest=.gitignore # stored without the dot in scaffold/
+  ddev composer config --json --merge extra.drupal-scaffold.file-mapping \
+    "{\"[project-root]/$dest\": {\"path\": \"assets/scaffold/$f\", \"mode\": \"replace\", \"overwrite\": false}}"
+done
+ddev composer drupal:scaffold
 
 echo "==> Files"
-write .editorconfig <<'X'
-root = true
-
-[*]
-charset = utf-8
-end_of_line = lf
-indent_style = space
-indent_size = 2
-insert_final_newline = true
-trim_trailing_whitespace = true
-
-[*.md]
-trim_trailing_whitespace = false
-X
-
-if [[ -f .gitignore ]]; then
-  for p in "/$DOCROOT/sites/*/settings.local.php" "/$DOCROOT/sites/*/services.local.yml" ".env" "*.sql.gz"; do
-    grep -qxF "$p" .gitignore || echo "$p" >> .gitignore
-  done
-else
-  write .gitignore <<X
-/vendor/
-/$DOCROOT/core/
-/$DOCROOT/modules/contrib/
-/$DOCROOT/themes/contrib/
-/$DOCROOT/profiles/contrib/
-/$DOCROOT/libraries/
-/$DOCROOT/sites/*/files/
-/$DOCROOT/sites/*/settings.local.php
-/$DOCROOT/sites/*/services.local.yml
-.env
-.idea/
-*.sql.gz
-X
-fi
-
 mkdir -p config/sync "$DOCROOT/modules/custom" "$DOCROOT/themes/custom"
 touch config/sync/.gitkeep "$DOCROOT/modules/custom/.gitkeep" "$DOCROOT/themes/custom/.gitkeep"
-
-if [[ $DEV_TOOLS -eq 1 ]]; then
-  write phpcs.xml.dist <<X
-<?xml version="1.0"?>
-<ruleset name="project">
-  <file>$DOCROOT/modules/custom</file>
-  <file>$DOCROOT/themes/custom</file>
-  <arg name="extensions" value="php,module,inc,install,test,profile,theme,css,info,txt,yml"/>
-  <rule ref="Drupal"/>
-  <rule ref="DrupalPractice"/>
-</ruleset>
-X
-  write phpstan.neon <<X
-parameters:
-  level: 5
-  paths:
-    - $DOCROOT/modules/custom
-    - $DOCROOT/themes/custom
-  drupal:
-    drupal_root: $DOCROOT
-X
-  # Custom DDEV command: `ddev check` runs phpcs + phpstan in the web container.
-  write .ddev/commands/web/check <<X
-#!/usr/bin/env bash
-## Description: Run phpcs and phpstan on custom code
-## Usage: check
-set -e
-vendor/bin/phpcs
-if [ -n "\$(find $DOCROOT/modules/custom $DOCROOT/themes/custom -name '*.php' -o -name '*.module' | head -1)" ]; then
-  vendor/bin/phpstan analyse --memory-limit=1G
-fi
-X
-  chmod +x .ddev/commands/web/check
-fi
 
 # Config sync lives outside the docroot and is committed. DDEV's generated
 # settings.php includes settings.ddev.php, which only sets a default if unset.
 SETTINGS="$DOCROOT/sites/default/settings.php"
-if [[ -f "$SETTINGS" ]] && ! grep -qE "^\\\$settings\['config_sync_directory'\]" "$SETTINGS"; then
+if [[ -f "$DOCROOT/sites/default/settings.ddev.php" && -f "$SETTINGS" ]] && ! grep -qE "^\\\$settings\['config_sync_directory'\]" "$SETTINGS"; then
   chmod u+w "$SETTINGS" "$(dirname "$SETTINGS")"
   cat >> "$SETTINGS" <<'X'
 
@@ -155,5 +132,5 @@ cat <<MSG
 Done. You can delete this script now.
   ddev launch          open the site
   ddev drush uli       one-time login link
-  ddev check           phpcs + phpstan on custom code
+  ddev phpcs | phpcbf | phpstan | phpunit | dr
 MSG

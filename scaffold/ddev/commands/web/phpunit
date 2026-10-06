@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+#ddev-silent-no-warn
+
+## Description: Run project tests
+## Usage: phpunit
+## Example: "ddev phpunit" (runs all tests)."
+## HostWorkingDir: false
+## Flags: [{"Name":"config","Type":"string","Shorthand":"c","Usage":"ddev phpunit --config <PATH>"},{"Name":"testsuite","Type":"string","Shorthand":"s","Usage":"ddev phpunit --testsuite unit|kernel|functional"},{"Name":"filter","Type":"string","Shorthand":"f","Usage":"ddev phpunit --filter <METHOD_NAME>"},{"Name":"group","Type":"string","Shorthand":"g","Usage":"ddev phpunit --group <GROUP>[,...<GROUP>]"},{"Name":"exclude-group","Type":"string","Shorthand":"e","Usage":"ddev phpunit --exclude-group <GROUP>[,...<GROUP>]"}]
+## AutocompleteTerms: ["unit","kernel","functional"]
+
+# Change working dir to ./web to allow all types of tests to run.
+cd "${DDEV_APPROOT}/${DDEV_DOCROOT}"
+
+# Function: Display error message.
+message() {
+  local msg="$1"
+  local type="${2:-status}"
+  local formatted_msg=""
+
+  local RED='\033[1;31m'
+  local GREEN='\033[1;32m'
+  local YELLOW='\033[1;33m'
+  local NC='\033[0m' # No color, reset.
+
+  case "$type" in
+    "success" )
+       formatted_msg="${GREEN}[Ok]${NC}" ;;
+    "error" )
+      formatted_msg="${RED}[Error]${NC}" ;;
+    * )
+      formatted_msg="${YELLOW}[Status]${NC}" ;;
+  esac
+
+  echo -e "${formatted_msg} ${msg}"
+}
+
+# Get command arguments.
+TEMP=$(getopt -o c:s:f:g:e: --long config:,suite:,testsuite:,filter:,group:,exclude-group: -- "$@")
+
+# Validate.
+if [ $? != 0 ] ; then echo -e "${RED}[Error]${NC} Could not parse command flags; Terminating..." >&2 ; exit 1 ; fi
+
+eval set -- "$TEMP"
+
+# Make sure phpunit is installed.
+if [ ! -f "${DDEV_APPROOT}/vendor/bin/phpunit" ]; then
+  message "PHPUnit executable not found in ${DDEV_APPROOT}/vendor/bin/phpunit" "error"
+  exit 1
+fi
+
+# Set default config file, override with -c (--config) flag.
+config_file=false
+
+# Set default testsuite, override with -s (--suite) flag.
+suite=false
+
+# Set default filter, override with -f (--filter) flag.
+filter=false
+
+# Set default group, override with -g (--group) flag.
+group=false
+
+# Set default exclude_group, override with -e (--exclude-group) flag.
+exclude_group=false
+
+# Check for flags.
+while true ; do
+  case "$1" in
+    -c | --config ) config_file="$2" ; shift 2 ;;
+    -s | --suite | --testsuite ) suite="$2"; shift 2 ;;
+    -f | --filter ) filter="$2"; shift 2 ;;
+    -g | --group ) group="$2"; shift 2 ;;
+    -e | --exclude-group ) exclude_group="$2"; shift 2 ;;
+    -- ) shift ; break ;;
+    * ) break ;;
+  esac
+done
+
+# Function: Get config file.
+get_config_file() {
+  # Parameter --config specified at runtime.
+  if [ ! "${config_file}" = false ]; then
+    echo "$config_file"
+    return 0
+  fi
+
+  # No config parameter specified.
+  config_file="${DDEV_APPROOT}/phpunit.xml"
+  if [ -f $config_file ]; then
+    echo "$config_file"
+    return 0
+  else
+    message "$config_file does not exist." "error"
+    exit 1
+  fi
+}
+
+# Function: Run tests.
+run_tests() {
+  local config_file=$(get_config_file)
+  declare -a parameters
+  parameters+=(--configuration "${config_file}")
+  if [ ! "${suite}" = false ]; then
+    parameters+=(--testsuite "${suite}")
+  fi
+  if [ ! "${filter}" = false ]; then
+    parameters+=(--filter "${filter}")
+  fi
+  if [ ! "${group}" = false ]; then
+    parameters+=(--group "${group}")
+  fi
+  if [ ! "${exclude_group}" = false ]; then
+    parameters+=(--exclude-group "${exclude_group}")
+  fi
+  if [ ${#parameters[@]} -eq 0 ]; then
+    command="${command} ${parameters}"
+  fi
+  command="phpunit ${parameters[@]}"
+  echo
+  message "Running tests (${command})." "status"
+  if ${DDEV_APPROOT}/vendor/bin/phpunit "${parameters[@]}"; then
+    message "No tests failed." "success"
+    return 0
+  else
+    message "One or more tests failed." "error"
+    return 1
+  fi
+}
+
+# Run.
+run_tests

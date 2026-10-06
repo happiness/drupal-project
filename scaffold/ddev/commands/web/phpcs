@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#ddev-silent-no-warn
+
+## Description: Run PHPStan. Uses the config file ./phpcs.xml
+## Usage: phpcs
+## Example: "ddev phpcs"
+## HostWorkingDir: false
+
+./vendor/bin/phpcs "$@"

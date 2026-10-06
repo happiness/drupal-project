@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#ddev-silent-no-warn
+
+## Description: Run PHP Code Beautifier and Fixer. Uses the config file ./phpcs.xml
+## Usage: phpcbf
+## Example: "ddev phpcbf"
+## HostWorkingDir: false
+
+./vendor/bin/phpcbf "$@"
