@@ -42,8 +42,12 @@ main() {
   DOCROOT="$(sed -n 's/^docroot: *//p' .ddev/config.yaml | tr -d '"' | head -1)"
   DOCROOT="${DOCROOT:-web}"
 
-  echo "==> Starting DDEV"
-  ddev start
+  if ddev describe -j 2>/dev/null | grep -q '"status":"running"'; then
+    echo "==> DDEV is already running"
+  else
+    echo "==> Starting DDEV"
+    ddev start
+  fi
 
   if [[ ! -f composer.json ]]; then
     echo "==> Creating Drupal project (drupal/recommended-project)"
