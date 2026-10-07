@@ -17,7 +17,8 @@
 /web/sites/simpletest/
 
 # Local environment
-.env
+/**/.env
+/**/.envrc
 .idea/
 .vscode/
 *.sql
