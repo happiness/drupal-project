@@ -70,7 +70,9 @@ main() {
     fi
   done
   PROJECT_URL="$(ddev exec 'echo -n "$DDEV_PRIMARY_URL"' | tr -d '\r')"
-  sed -i "s|%DDEV_PROJECT_URL%|$PROJECT_URL|g" assets/scaffold/phpunit.xml
+  # `-i.bak` (and removing the backup) is the one form of in-place sed that works on both GNU and BSD/macOS.
+  sed -i.bak "s|%DDEV_PROJECT_URL%|$PROJECT_URL|g" assets/scaffold/phpunit.xml
+  rm -f assets/scaffold/phpunit.xml.bak
   echo "  assets/scaffold ready (DDEV URL: $PROJECT_URL)"
 
   echo "==> DDEV commands"
@@ -144,7 +146,8 @@ main() {
 $settings['config_sync_directory'] = '../config/sync';
 X
     # Enable the (commented-out) settings.local.php include at the end of settings.php.
-    sed -i '/^# if (file_exists(\$app_root.*settings\.local\.php/,/^# }/s/^# \{0,1\}//' "$SETTINGS"
+    sed -i.bak '/^# if (file_exists(\$app_root.*settings\.local\.php/,/^# }/s/^# \{0,1\}//' "$SETTINGS"
+    rm -f "$SETTINGS.bak"
     echo "  patch $SETTINGS"
   fi
 
