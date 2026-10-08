@@ -4,7 +4,16 @@ A throwaway script that applies best-practice scaffolding to a fresh DDEV
 Drupal project (`drupal/recommended-project`, i.e. `drupal/core-recommended`).
 Run it once, then delete it.
 
-## Usage
+## Usage existing site
+
+```sh
+ddev composer config allow-plugins.phpstan/extension-installer true
+ddev composer config allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
+
+curl -fsSL https://raw.githubusercontent.com/happiness/drupal-project/main/setup.sh | bash
+```
+
+## Usage new site
 
 ```sh
 mkdir my-site && cd my-site
