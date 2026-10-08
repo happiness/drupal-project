@@ -27,6 +27,6 @@
 .phpunit.cache/
 
 # Scaffolded testing config (managed via assets/scaffold)
-phpcs.xml
-phpstan.neon
-phpunit.xml
+/phpcs.xml
+/phpstan.neon
+/phpunit.xml

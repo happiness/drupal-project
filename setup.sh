@@ -115,11 +115,12 @@ main() {
   fi
 
   # The scaffolded .gitignore is never overwritten. If the project already has one,
-  # append ignore rules for the scaffolded testing config instead.
+  # append ignore rules for the scaffolded testing config instead. The leading `/`
+  # anchors each rule to the project root so nested files of the same name stay tracked.
   if [[ -f .gitignore ]]; then
     echo "==> Appending testing config to existing .gitignore"
     [[ -n "$(tail -c1 .gitignore)" ]] && echo >> .gitignore
-    for p in phpcs.xml phpstan.neon phpunit.xml; do
+    for p in /phpcs.xml /phpstan.neon /phpunit.xml; do
       grep -qxF "$p" .gitignore || { echo "$p" >> .gitignore; echo "  add   $p"; }
     done
   fi
