@@ -17,13 +17,29 @@
 set -euo pipefail
 
 SCAFFOLD_FILES=(phpcs.xml phpstan.neon phpunit.xml gitignore)
-DDEV_COMMANDS=(web/dr web/phpcbf web/phpcs web/phpstan web/phpunit)
+# Paths relative to .ddev/ (and to scaffold/ddev/).
+DDEV_FILES=(
+  commands/web/dr commands/web/phpcbf commands/web/phpcs commands/web/phpstan commands/web/phpunit
+  config.sanitize.yaml sanitize/sanitize.php
+)
 SCAFFOLD_URL="${SCAFFOLD_URL:-https://raw.githubusercontent.com/happiness/drupal-project/main/scaffold}"
 # Local scaffold/ next to the script, if run from a clone (empty when piped from curl).
 SCAFFOLD_SRC=""
 if [[ -n "${BASH_SOURCE[0]:-}" && -d "$(dirname "${BASH_SOURCE[0]}")/scaffold" ]]; then
   SCAFFOLD_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/scaffold"
 fi
+
+# Copy scaffold/<path> ($1) to $2, from the clone or from SCAFFOLD_URL. Writes to a
+# temporary file first: existing files are skipped on later runs, so an interrupted
+# download must not leave a truncated file at $2.
+fetch() {
+  if [[ -n "$SCAFFOLD_SRC" ]]; then
+    cp "$SCAFFOLD_SRC/$1" "$2.tmp"
+  else
+    curl -fsSL "$SCAFFOLD_URL/$1" -o "$2.tmp"
+  fi || { rm -f "$2.tmp"; return 1; }
+  mv "$2.tmp" "$2"
+}
 
 main() {
   INSTALL=0
@@ -63,11 +79,7 @@ main() {
   mkdir -p assets/scaffold
   for f in "${SCAFFOLD_FILES[@]}"; do
     [[ -e "assets/scaffold/$f" ]] && continue
-    if [[ -n "$SCAFFOLD_SRC" ]]; then
-      cp "$SCAFFOLD_SRC/$f" "assets/scaffold/$f"
-    else
-      curl -fsSL "$SCAFFOLD_URL/$f" -o "assets/scaffold/$f"
-    fi
+    fetch "$f" "assets/scaffold/$f"
   done
   PROJECT_URL="$(ddev exec 'echo -n "$DDEV_PRIMARY_URL"' | tr -d '\r')"
   # `-i.bak` (and removing the backup) is the one form of in-place sed that works on both GNU and BSD/macOS.
@@ -75,19 +87,33 @@ main() {
   rm -f assets/scaffold/phpunit.xml.bak
   echo "  assets/scaffold ready (DDEV URL: $PROJECT_URL)"
 
-  echo "==> DDEV commands"
-  for c in "${DDEV_COMMANDS[@]}"; do
-    dest=".ddev/commands/$c"
+  echo "==> DDEV commands and sanitize hook"
+  for f in "${DDEV_FILES[@]}"; do
+    dest=".ddev/$f"
     [[ -e "$dest" ]] && { echo "  skip  $dest (exists)"; continue; }
     mkdir -p "$(dirname "$dest")"
-    if [[ -n "$SCAFFOLD_SRC" ]]; then
-      cp "$SCAFFOLD_SRC/ddev/commands/$c" "$dest"
-    else
-      curl -fsSL "$SCAFFOLD_URL/ddev/commands/$c" -o "$dest"
-    fi
-    chmod +x "$dest"
+    fetch "ddev/$f" "$dest"
+    [[ "$f" == commands/* ]] && chmod +x "$dest"
     echo "  write $dest"
   done
+  # DDEV only warns when a hook fails, so a failed sanitize would leave real
+  # data in the database without failing `ddev import-db`. The setting applies
+  # to all of the project's hooks, so only add it when there are no others that
+  # could start failing `ddev start` or `ddev import-db`.
+  FAIL_ON_HOOK_FAIL="$(sed -n 's/^fail_on_hook_fail: *//p' .ddev/config.yaml | head -1)"
+  OTHER_HOOKS="$(grep -l '^hooks:' .ddev/config.yaml .ddev/config.*.yaml 2>/dev/null \
+    | grep -vx '.ddev/config.sanitize.yaml' | tr '\n' ' ' || true)"
+  if [[ -z "$FAIL_ON_HOOK_FAIL" && -z "$OTHER_HOOKS" ]]; then
+    [[ -n "$(tail -c1 .ddev/config.yaml)" ]] && echo >> .ddev/config.yaml
+    echo "fail_on_hook_fail: true" >> .ddev/config.yaml
+    echo "  add   fail_on_hook_fail: true to .ddev/config.yaml"
+  elif [[ -z "$FAIL_ON_HOOK_FAIL" ]]; then
+    echo "  warn  Not adding fail_on_hook_fail: true, which would also apply to the hooks in" \
+      "${OTHER_HOOKS% }. A failed sanitize will not fail 'ddev import-db'. Check its output for DATABASE NOT SANITIZED."
+  elif [[ "$FAIL_ON_HOOK_FAIL" != true ]]; then
+    echo "  warn  .ddev/config.yaml has fail_on_hook_fail: $FAIL_ON_HOOK_FAIL, so a failed sanitize" \
+      "will not fail 'ddev import-db'. Check its output for DATABASE NOT SANITIZED."
+  fi
 
   echo "==> Composer"
   ddev composer config sort-packages true
@@ -164,6 +190,7 @@ Done. You can delete this script now.
   ddev launch          open the site
   ddev drush uli       one-time login link
   ddev phpcs | phpcbf | phpstan | phpunit | dr
+  ddev import-db       imports are sanitized (every password is "password")
 MSG
 }
 

@@ -31,7 +31,9 @@ Set `SCAFFOLD_URL` to fetch scaffold files from another location when piping fro
 
 1. Copies `scaffold/{phpcs.xml,phpstan.neon,phpunit.xml,gitignore}` to `assets/scaffold/` and replaces
    `%DDEV_PROJECT_URL%` in `phpunit.xml` with the project's DDEV URL.
-2. Copies `scaffold/ddev/commands/*` to `.ddev/commands/` (`ddev phpcs`, `phpcbf`, `phpstan`, `phpunit`, `dr`).
+2. Copies `scaffold/ddev/*` to `.ddev/`: the commands `ddev phpcs`, `phpcbf`, `phpstan`, `phpunit` and `dr`,
+   and the [sanitize hook](#database-sanitization). Adds `fail_on_hook_fail: true` to `.ddev/config.yaml`
+   unless it is already set or the project has other DDEV hooks.
 3. Composer: Drush, `drupal/ai_best_practices`, `drupal/core-dev` (matching the installed
    `drupal/core-recommended` major version) and `happiness/ai-skills`.
 4. Maps the scaffold files into the project root (`gitignore` becomes `.gitignore`) via `extra.drupal-scaffold.file-mapping`
@@ -41,3 +43,61 @@ Set `SCAFFOLD_URL` to fetch scaffold files from another location when piping fro
 6. Creates `config/sync`, `modules/custom` and `themes/custom`.
 
 Existing files are never overwritten.
+
+## Database sanitization
+
+Every `ddev import-db` anonymizes the imported database, so production copies used
+for local development carry no real personal data. The `post-import-db` hook in
+`.ddev/config.sanitize.yaml` runs:
+
+1. `drush sql:sanitize` with emails set to `user+<uid>@localhost` and every
+   password set to `password`.
+2. `.ddev/sanitize/sanitize.php`, which also:
+   - renames users to `user<uid>` (uid 1 becomes `admin`) and sets `init` to
+     the sanitized email,
+   - sets commenter IP addresses to `127.0.0.1` and the stored name of the
+     last anonymous commenter to `Anonymous`,
+   - empties `watchdog`, `flood` and `key_value_expire` (tempstore and other
+     expirable data),
+   - empties Webform submissions and Contact messages, when those tables exist,
+   - checks that every user account was sanitized, and fails with
+     `DATABASE NOT SANITIZED` if not.
+3. `drush cr`.
+
+With `fail_on_hook_fail: true`, `ddev import-db` fails if any step fails. The
+setting applies to all of the project's hooks, so the script doesn't add it if
+`.ddev/config.yaml` or another `.ddev/config.*.yaml` already defines hooks,
+because those hooks could then start failing `ddev start` or `ddev import-db`.
+It also leaves an existing `fail_on_hook_fail: false` in place. In both cases it
+prints a warning. Without the setting, a failed sanitize only prints a warning
+and the import still succeeds, so check the output for `DATABASE NOT SANITIZED`.
+Add `fail_on_hook_fail: true` yourself once the other hooks are known to succeed.
+Log in with `ddev drush uli`, or as any user with the password `password`.
+
+Limitations:
+
+- **Only the default site is sanitized.** `ddev import-db --database=<other>`
+  runs the same hook, which sanitizes the default `db` database, not the one
+  you imported. Sanitize other databases yourself, for example with
+  `ddev drush --uri=<site> sql:sanitize`.
+- **Coverage is not complete.** Personal data can remain in custom entities and
+  tables, `path_alias` (e.g. Pathauto aliases containing usernames), `queue`,
+  `file_managed` file names and search indexes. Review your site's data.
+- **Every account's password is `password`**, including uid 1. Don't expose a
+  sanitized site with `ddev share` or on a shared network.
+
+Commit `.ddev/config.sanitize.yaml` and `.ddev/sanitize/`, so everyone on the
+project gets the same hook. They are plain project files, so edit them to cover
+site-specific data.
+
+## Tests
+
+`tests/test.bats` builds a Drupal site with fake personal data in DDEV,
+installs the sanitize hook as `setup.sh` does and checks that `ddev import-db`
+anonymizes it. It runs in GitHub Actions on every push, pull request and weekly.
+To run it locally, install `bats-core`, `bats-assert`, `bats-file` and
+`bats-support` (e.g. with Homebrew), then:
+
+```sh
+bats ./tests/test.bats
+```
