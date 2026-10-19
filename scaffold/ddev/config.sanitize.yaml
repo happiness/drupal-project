@@ -1,0 +1,6 @@
+# Anonymize every database imported with `ddev import-db`.
+hooks:
+  post-import-db:
+    - exec: drush sql:sanitize -y --sanitize-email=user+%uid@localhost --sanitize-password=password
+    - exec: drush php:script /var/www/html/.ddev/sanitize/sanitize.php
+    - exec: drush cr
