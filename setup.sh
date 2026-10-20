@@ -143,10 +143,16 @@ main() {
   # The scaffolded .gitignore is never overwritten. If the project already has one,
   # append ignore rules for the scaffolded testing config instead. The leading `/`
   # anchors each rule to the project root so nested files of the same name stay tracked.
+  # A file the project already commits is its own config (drupal:scaffold won't
+  # overwrite it), so it is not ignored.
   if [[ -f .gitignore ]]; then
     echo "==> Appending testing config to existing .gitignore"
     [[ -n "$(tail -c1 .gitignore)" ]] && echo >> .gitignore
     for p in /phpcs.xml /phpstan.neon /phpunit.xml; do
+      if git ls-files --error-unmatch -- "${p#/}" >/dev/null 2>&1; then
+        echo "  skip  $p (tracked by git)"
+        continue
+      fi
       grep -qxF "$p" .gitignore || { echo "$p" >> .gitignore; echo "  add   $p"; }
     done
   fi
@@ -160,21 +166,42 @@ main() {
   ddev composer drupal:scaffold
 
   echo "==> Files"
-  mkdir -p config/sync "$DOCROOT/modules/custom" "$DOCROOT/themes/custom"
-  touch config/sync/.gitkeep "$DOCROOT/modules/custom/.gitkeep" "$DOCROOT/themes/custom/.gitkeep"
+  # .gitkeep only where git would otherwise drop the empty directory.
+  for d in config/sync "$DOCROOT/modules/custom" "$DOCROOT/themes/custom"; do
+    mkdir -p "$d"
+    if [[ -z "$(ls -A "$d")" ]]; then touch "$d/.gitkeep"; fi
+  done
 
   # Config sync lives outside the docroot and is committed. DDEV's generated
   # settings.php includes settings.ddev.php, which only sets a default if unset.
   SETTINGS="$DOCROOT/sites/default/settings.php"
   if [[ -f "$DOCROOT/sites/default/settings.ddev.php" && -f "$SETTINGS" ]] && ! grep -qE "^\\\$settings\['config_sync_directory'\]" "$SETTINGS"; then
     chmod u+w "$SETTINGS" "$(dirname "$SETTINGS")"
-    cat >> "$SETTINGS" <<'X'
-
-$settings['config_sync_directory'] = '../config/sync';
-X
-    # Enable the (commented-out) settings.local.php include at the end of settings.php.
-    sed -i.bak '/^# if (file_exists(\$app_root.*settings\.local\.php/,/^# }/s/^# \{0,1\}//' "$SETTINGS"
-    rm -f "$SETTINGS.bak"
+    # Insert it above the settings.local.php include and the comment block that
+    # documents it, so settings.local.php can still override it. Without an
+    # include, append it.
+    awk -v sync="\$settings['config_sync_directory'] = '../config/sync';" '
+      { l[NR] = $0 }
+      END {
+        at = NR + 1
+        for (i = 1; i <= NR; i++) {
+          if (l[i] ~ /^(# ?)?if \(file_exists\(\$app_root.*settings\.local\.php/) { at = i; break }
+        }
+        for (i = at - 1; at <= NR && i > 0 && l[i] ~ /^(#.*|[[:space:]]*\*.*|\/\*\*.*|[[:space:]]*)$/; i--) {
+          if (l[i] ~ /^\/\*\*/) { at = i; break }
+        }
+        for (i = 1; i <= NR; i++) { if (i == at) print sync "\n"; print l[i] }
+        if (at > NR) print "\n" sync
+      }' "$SETTINGS" > "$SETTINGS.tmp"
+    # Write back in place to keep the file's permissions.
+    cat "$SETTINGS.tmp" > "$SETTINGS"
+    rm -f "$SETTINGS.tmp"
+    # Enable the (commented-out) settings.local.php include at the end of settings.php,
+    # unless the project already includes it, which would include it twice.
+    if ! grep -qE "^[[:space:]]*include .*settings\.local\.php" "$SETTINGS"; then
+      sed -i.bak '/^# if (file_exists(\$app_root.*settings\.local\.php/,/^# }/s/^# \{0,1\}//' "$SETTINGS"
+      rm -f "$SETTINGS.bak"
+    fi
     echo "  patch $SETTINGS"
   fi
 
