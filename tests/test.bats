@@ -121,11 +121,55 @@ teardown() {
   install_hook
   import_and_check
 
+  # --skip-hooks imports the database as is.
+  run ddev import-db --skip-hooks --file="${TESTDIR}/db.sql.gz"
+  assert_success
+  run ddev drush sql:query "SELECT mail FROM users_field_data WHERE uid = 2"
+  assert_output "john@example.com"
+
   # If email sanitizing doesn't happen, the final check must say so, and
   # fail_on_hook_fail must make the import fail.
-  sed -i.bak 's/--sanitize-email=user+%uid@localhost/--sanitize-email=no/' .ddev/config.sanitize.yaml
-  rm .ddev/config.sanitize.yaml.bak
+  sed -i.bak 's/--sanitize-email=user+%uid@localhost/--sanitize-email=no/' .ddev/sanitize/sanitize.sh
+  rm .ddev/sanitize/sanitize.sh.bak
   run ddev import-db --file="${TESTDIR}/db.sql.gz"
   assert_failure
   assert_output --partial "DATABASE NOT SANITIZED: 3 user account(s)"
+}
+
+@test "multisite" {
+  set -eu -o pipefail
+  echo "# multisite with project ${PROJNAME} in $(pwd)" >&3
+  install_hook
+
+  # site2 has its own database with real-looking data, and a table prefix. DDEV's db user can't
+  # create databases, so create it as root.
+  run ddev mysql -uroot -proot -e "CREATE DATABASE site2; GRANT ALL ON site2.* TO 'db'@'%';"
+  assert_success
+  run ddev drush site:install minimal -y --sites-subdir=site2 --db-url=mysql://db:db@db/site2 --db-prefix=s2_ --account-name=bob.admin --account-mail=bob@example.com --account-pass=secret
+  assert_success
+  run ddev drush --uri=site2 user:create carol --mail=carol@example.com --password=secret
+  assert_success
+  run ddev export-db --database=site2 --file="${TESTDIR}/site2.sql.gz"
+  assert_success
+  # site3's database hasn't been imported yet.
+  mkdir -p web/sites/site3
+  printf '<?php\n$databases["default"]["default"] = ["database" => "site3", "username" => "db", "password" => "db", "host" => "db", "driver" => "mysql"];\n' > web/sites/site3/settings.php
+
+  # Importing site2 sanitizes every site with a database and skips site3.
+  run ddev import-db --database=site2 --file="${TESTDIR}/site2.sql.gz"
+  assert_success
+  assert_output --partial "Sanitizing site site2 (database site2)"
+  assert_output --partial "Skipping site site3"
+  run ddev drush --uri=site2 sql:query "SELECT CONCAT(uid, ':', name, ':', mail) FROM s2_users_field_data WHERE uid > 0 ORDER BY uid"
+  assert_success
+  assert_line "1:admin:user+1@localhost"
+  assert_line "2:user2:user+2@localhost"
+  refute_output --partial "example.com"
+  run ddev drush sql:query "SELECT COUNT(*) FROM users_field_data WHERE mail LIKE '%example.com'"
+  assert_output "0"
+
+  # A database no site uses can't be sanitized, so the import must fail.
+  run ddev import-db --database=orphan --file="${TESTDIR}/db.sql.gz"
+  assert_failure
+  assert_output --partial "DATABASE NOT SANITIZED: orphan is not used by any site"
 }

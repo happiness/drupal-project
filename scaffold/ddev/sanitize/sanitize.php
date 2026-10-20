@@ -89,7 +89,7 @@ foreach ($schema->findTables('contact_message__%') as $table) {
 // Fail loudly if `drush sql:sanitize` or anything above didn't apply. DDEV
 // only warns about a failed hook, so this message is what tells the developer
 // the imported database still holds real data. Keep "@localhost" in sync
-// with --sanitize-email in config.sanitize.yaml.
+// with --sanitize-email in sanitize.sh.
 $leftover = $db->select('users_field_data', 'u')
   ->condition('uid', 0, '>')
   ->condition($db->condition('OR')

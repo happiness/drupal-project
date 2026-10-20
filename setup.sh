@@ -20,7 +20,7 @@ SCAFFOLD_FILES=(phpcs.xml phpstan.neon phpunit.xml gitignore)
 # Paths relative to .ddev/ (and to scaffold/ddev/).
 DDEV_FILES=(
   commands/web/dr commands/web/phpcbf commands/web/phpcs commands/web/phpstan commands/web/phpunit
-  config.sanitize.yaml sanitize/sanitize.php
+  config.sanitize.yaml sanitize/sanitize.sh sanitize/sanitize.php
 )
 SCAFFOLD_URL="${SCAFFOLD_URL:-https://raw.githubusercontent.com/happiness/drupal-project/main/scaffold}"
 # Local scaffold/ next to the script, if run from a clone (empty when piped from curl).
@@ -96,6 +96,12 @@ main() {
     [[ "$f" == commands/* ]] && chmod +x "$dest"
     echo "  write $dest"
   done
+  # Projects set up before multisite support (or with the old ddev-drupal-sanitize
+  # add-on) keep their hook, which only sanitizes the default site.
+  if grep -q 'sql:sanitize' .ddev/config.sanitize.yaml; then
+    echo "  warn  .ddev/config.sanitize.yaml is the old hook, which only sanitizes the default site." \
+      "Replace it with scaffold/ddev/config.sanitize.yaml from happiness/drupal-project to sanitize every site."
+  fi
   # DDEV only warns when a hook fails, so a failed sanitize would leave real
   # data in the database without failing `ddev import-db`. The setting applies
   # to all of the project's hooks, so only add it when there are no others that

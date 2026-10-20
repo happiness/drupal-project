@@ -1,6 +1,5 @@
-# Anonymize every database imported with `ddev import-db`.
+# Anonymize every database imported with `ddev import-db`, for each site of a
+# multisite. Skip it with `ddev import-db --skip-hooks`.
 hooks:
   post-import-db:
-    - exec: drush sql:sanitize -y --sanitize-email=user+%uid@localhost --sanitize-password=password
-    - exec: drush php:script /var/www/html/.ddev/sanitize/sanitize.php
-    - exec: drush cr
+    - exec: bash /var/www/html/.ddev/sanitize/sanitize.sh
