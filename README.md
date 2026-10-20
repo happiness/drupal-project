@@ -51,7 +51,8 @@ Existing files are never overwritten.
 
 Every `ddev import-db` anonymizes the imported database, so production copies used
 for local development carry no real personal data. The `post-import-db` hook in
-`.ddev/config.sanitize.yaml` runs:
+`.ddev/config.sanitize.yaml` runs `.ddev/sanitize/sanitize.sh`, which does the
+following for every site in `web/sites/*/` whose database has been imported:
 
 1. `drush sql:sanitize` with emails set to `user+<uid>@localhost` and every
    password set to `password`.
@@ -67,6 +68,18 @@ for local development carry no real personal data. The `post-import-db` hook in
      `DATABASE NOT SANITIZED` if not.
 3. `drush cr`.
 
+**Multisite:** DDEV doesn't tell the hook which database `ddev import-db
+--database=<name>` imported into, so every site with an imported database is
+sanitized on each import, which is safe to repeat. Sites without a database
+(not imported yet) are skipped. If a database with Drupal users belongs to no
+site, for example after `--database=<typo>`, the hook fails with
+`DATABASE NOT SANITIZED`, because it can't sanitize it.
+
+**Skipping it:** to keep the real data, for example to debug something that
+depends on it, run `ddev import-db --skip-hooks --file=<dump>`. This skips all
+of the project's `post-import-db` hooks. The local database then holds real
+personal data, so import it again without `--skip-hooks` when you're done.
+
 With `fail_on_hook_fail: true`, `ddev import-db` fails if any step fails. The
 setting applies to all of the project's hooks, so the script doesn't add it if
 `.ddev/config.yaml` or another `.ddev/config.*.yaml` already defines hooks,
@@ -79,10 +92,8 @@ Log in with `ddev drush uli`, or as any user with the password `password`.
 
 Limitations:
 
-- **Only the default site is sanitized.** `ddev import-db --database=<other>`
-  runs the same hook, which sanitizes the default `db` database, not the one
-  you imported. Sanitize other databases yourself, for example with
-  `ddev drush --uri=<site> sql:sanitize`.
+- **Multisite needs Drush to find each site by its directory name**
+  (`drush --uri=<directory>`), and a MySQL or MariaDB database.
 - **Coverage is not complete.** Personal data can remain in custom entities and
   tables, `path_alias` (e.g. Pathauto aliases containing usernames), `queue`,
   `file_managed` file names and search indexes. Review your site's data.
@@ -93,11 +104,18 @@ Commit `.ddev/config.sanitize.yaml` and `.ddev/sanitize/`, so everyone on the
 project gets the same hook. They are plain project files, so edit them to cover
 site-specific data.
 
+**Upgrading an existing project:** `setup.sh` never overwrites these files.
+Projects set up before multisite support, or with the old
+`ddev-drupal-sanitize` add-on, keep a hook that only sanitizes the default site,
+and `setup.sh` warns about it. To upgrade, copy `scaffold/ddev/config.sanitize.yaml`
+and `scaffold/ddev/sanitize/` from this repository over the project's files in
+`.ddev/`.
+
 ## Tests
 
-`tests/test.bats` builds a Drupal site with fake personal data in DDEV,
-installs the sanitize hook as `setup.sh` does and checks that `ddev import-db`
-anonymizes it. It runs in GitHub Actions on every push, pull request and weekly.
+`tests/test.bats` builds a Drupal site and a multisite with fake personal data
+in DDEV, installs the sanitize hook as `setup.sh` does and checks that
+`ddev import-db` anonymizes them. It runs in GitHub Actions on every push, pull request and weekly.
 To run it locally, install `bats-core`, `bats-assert`, `bats-file` and
 `bats-support` (e.g. with Homebrew), then:
 
