@@ -133,7 +133,7 @@ main() {
   [[ -n "$CORE" ]] || { echo "Could not detect drupal/core-recommended version" >&2; exit 1; }
   ddev composer require "drupal/core-dev:^$CORE" --dev -W
   ddev composer config repositories.happiness-ai-skills vcs git@github.com:happiness/ai-skills.git
-  ddev composer require happiness/ai-skills:^1.0
+  ddev composer require happiness/ai-skills:^1.0 --dev
 
   # Sync skills (ai_best_practices + happiness/ai-skills) to .agents/skills, then
   # expose them to Claude Code.
