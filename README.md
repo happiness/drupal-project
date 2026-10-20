@@ -37,10 +37,13 @@ Set `SCAFFOLD_URL` to fetch scaffold files from another location when piping fro
 3. Composer: Drush, `drupal/ai_best_practices`, `drupal/core-dev` (matching the installed
    `drupal/core-recommended` major version) and `happiness/ai-skills`.
 4. Maps the scaffold files into the project root (`gitignore` becomes `.gitignore`) via `extra.drupal-scaffold.file-mapping`
-   (`replace` mode, `overwrite: false`) and runs `ddev composer drupal:scaffold`.
-5. Sets `config_sync_directory` to `../config/sync` in `settings.php` (when `settings.ddev.php` exists)
-   and enables the `settings.local.php` include.
-6. Creates `config/sync`, `modules/custom` and `themes/custom`.
+   (`replace` mode, `overwrite: false`) and runs `ddev composer drupal:scaffold`. If the project already
+   has a `.gitignore`, it adds `/phpcs.xml`, `/phpstan.neon` and `/phpunit.xml` to it, except files the
+   project already commits.
+5. Sets `config_sync_directory` to `../config/sync` in `settings.php` (when `settings.ddev.php` exists),
+   above the `settings.local.php` include so that `settings.local.php` can override it, and enables that
+   include, unless it is already enabled.
+6. Creates `config/sync`, `modules/custom` and `themes/custom`, with a `.gitkeep` in each one that is empty.
 
 Existing files are never overwritten.
 
