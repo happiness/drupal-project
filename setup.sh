@@ -132,11 +132,10 @@ main() {
   CORE="$(ddev composer show drupal/core-recommended | sed -n 's/^versions *: *\* *\([0-9]*\)\..*/\1/p' | head -1)"
   [[ -n "$CORE" ]] || { echo "Could not detect drupal/core-recommended version" >&2; exit 1; }
   ddev composer require "drupal/core-dev:^$CORE" --dev -W
-  ddev composer config repositories.happiness-ai-skills vcs git@github.com:happiness/ai-skills.git
-  ddev composer require happiness/ai-skills:^1.0 --dev
 
-  # Sync skills (ai_best_practices + happiness/ai-skills) to .agents/skills, then
-  # expose them to Claude Code.
+  # Sync the Drupal skills (ai_best_practices) to .agents/skills, then expose them
+  # to Claude Code. The company's own skills come from the Happiness organisation
+  # on claude.ai, not from Composer.
   ddev composer drupal-ai skills-sync
   mkdir -p .claude
   if [[ -e .claude/skills || -L .claude/skills ]]; then
