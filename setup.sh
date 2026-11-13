@@ -41,6 +41,94 @@ fetch() {
   mv "$2.tmp" "$2"
 }
 
+# Inserts the line $2 into the settings.php $1, above the settings.local.php include
+# and the comment block that documents it, so settings.local.php can still override
+# it. Without that include, appends it. Writes back in place to keep the file's
+# permissions.
+insert_before_local_include() {
+  awk -v text="$2" '
+    { l[NR] = $0 }
+    END {
+      at = NR + 1
+      for (i = 1; i <= NR; i++) {
+        if (l[i] ~ /^(# ?)?if \(file_exists\(\$app_root.*settings\.local\.php/) { at = i; break }
+      }
+      for (i = at - 1; at <= NR && i > 0 && l[i] ~ /^(#.*|[[:space:]]*\*.*|\/\*\*.*|[[:space:]]*)$/; i--) {
+        if (l[i] ~ /^\/\*\*/) { at = i; break }
+      }
+      for (i = 1; i <= NR; i++) { if (i == at) print text "\n"; print l[i] }
+      if (at > NR) print "\n" text
+    }' "$1" > "$1.tmp"
+  cat "$1.tmp" > "$1"
+  rm -f "$1.tmp"
+}
+
+# Prints which secrets the settings.php $1 sets itself: hash_salt (other than '')
+# and database passwords. Code lines only: default.settings.php documents both in
+# comments.
+settings_secrets() {
+  local code
+  code="$(grep -vE '^[[:space:]]*(\*|#|//|/\*)' "$1" || true)"
+  if grep -qE "\\\$settings\['hash_salt'\][[:space:]]*=[[:space:]]*([^'[:space:]]|'[^'])" <<< "$code"; then
+    echo hash_salt
+  fi
+  if grep -qE "[\"']password[\"'][[:space:]]*(=>|\][[:space:]]*=)[[:space:]]*[\"'][^\"']" <<< "$code"; then
+    echo password
+  fi
+}
+
+# Writes the agent instructions for the branch workflow (scaffold/AGENTS.workflow.md)
+# into AGENTS.md: replaces the block between its happiness markers, or appends it.
+# drupal/ai_best_practices manages its own block in the same file and leaves the
+# rest alone.
+update_agents_md() {
+  local block=.agents-workflow.md
+  fetch AGENTS.workflow.md "$block"
+  if [[ -f AGENTS.md ]] && grep -q '^<!-- happiness:start -->' AGENTS.md; then
+    awk -v block="$block" '
+      /^<!-- happiness:start -->/ { while ((getline line < block) > 0) print line; skip = 1; next }
+      skip && /^<!-- happiness:end -->/ { skip = 0; next }
+      !skip { print }' AGENTS.md > AGENTS.md.tmp
+    cat AGENTS.md.tmp > AGENTS.md
+    rm -f AGENTS.md.tmp
+    echo "  update AGENTS.md (branch workflow)"
+  else
+    if [[ -s AGENTS.md ]]; then
+      [[ -n "$(tail -c1 AGENTS.md)" ]] && echo >> AGENTS.md
+      echo >> AGENTS.md
+    fi
+    cat "$block" >> AGENTS.md
+    echo "  add   AGENTS.md (branch workflow)"
+  fi
+  rm -f "$block"
+}
+
+# Warns about settings files that break docs/settings.md: settings.php belongs in
+# git and holds no secrets, which on servers come from .env.local, outside git.
+# Only warns: moving an existing site's secrets is done by hand, per the docs.
+check_settings() {
+  local f in_git=0
+  echo "==> Checking settings files"
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1 && in_git=1
+  for f in "$DOCROOT"/sites/*/settings.php; do
+    [[ -f "$f" ]] || continue
+    if [[ $in_git -eq 1 ]] && git check-ignore -q -- "$f"; then
+      echo "  warn  $f is ignored by git. Commit it and keep the secrets in .env.local, see docs/settings.md."
+    fi
+    case "$(settings_secrets "$f")" in
+      *hash_salt*) echo "  warn  $f sets hash_salt. Move it unchanged to .env.local, see docs/settings.md." ;;
+    esac
+    case "$(settings_secrets "$f")" in
+      *password*) echo "  warn  $f contains a database password. Move it to .env.local, see docs/settings.md." ;;
+    esac
+  done
+  if [[ $in_git -eq 1 ]]; then
+    for f in $(git ls-files -- .env.local "$DOCROOT/sites/*/settings.local.php"); do
+      echo "  warn  $f is tracked by git and may hold secrets. Remove it from git, see docs/settings.md."
+    done
+  fi
+}
+
 main() {
   INSTALL=0
   for arg in "$@"; do
@@ -65,6 +153,11 @@ main() {
     ddev start
   fi
 
+  # Composer plugins (drupal/ai_best_practices) create a .gitignore of their own, so
+  # note now whether the project already had one.
+  HAD_GITIGNORE=0
+  [[ -f .gitignore ]] && HAD_GITIGNORE=1
+
   if [[ ! -f composer.json ]]; then
     echo "==> Creating Drupal project (drupal/recommended-project)"
     ddev composer create-project drupal/recommended-project
@@ -81,6 +174,7 @@ main() {
     [[ -e "assets/scaffold/$f" ]] && continue
     fetch "$f" "assets/scaffold/$f"
   done
+  # shellcheck disable=SC2016 # $DDEV_PRIMARY_URL expands in the container, not here.
   PROJECT_URL="$(ddev exec 'echo -n "$DDEV_PRIMARY_URL"' | tr -d '\r')"
   # `-i.bak` (and removing the backup) is the one form of in-place sed that works on both GNU and BSD/macOS.
   sed -i.bak "s|%DDEV_PROJECT_URL%|$PROJECT_URL|g" assets/scaffold/phpunit.xml
@@ -125,6 +219,8 @@ main() {
   ddev composer config sort-packages true
   ddev composer config optimize-autoloader true
   ddev composer require drush/drush
+  # settings.env.php reads .env.local with it (docs/settings.md).
+  ddev composer require 'vlucas/phpdotenv:^5.6'
   ddev composer config allow-plugins.drupal/ai_best_practices true
   ddev composer require --dev drupal/ai_best_practices:@dev
 
@@ -145,19 +241,39 @@ main() {
     echo "  link  .claude/skills -> ../.agents/skills"
   fi
 
-  # The scaffolded .gitignore is never overwritten. If the project already has one,
-  # append ignore rules for the scaffolded testing config instead. The leading `/`
-  # anchors each rule to the project root so nested files of the same name stay tracked.
-  # A file the project already commits is its own config (drupal:scaffold won't
-  # overwrite it), so it is not ignored.
-  if [[ -f .gitignore ]]; then
-    echo "==> Appending testing config to existing .gitignore"
+  if [[ $HAD_GITIGNORE -eq 0 ]]; then
+    # New project: the scaffolded .gitignore is the base. A .gitignore created by a
+    # Composer plugin above would make drupal:scaffold skip it, so merge the plugin's
+    # rules into it instead.
+    echo "==> .gitignore"
+    if [[ -f .gitignore ]]; then
+      extra="$(grep -vxF -f assets/scaffold/gitignore .gitignore || true)"
+      cp assets/scaffold/gitignore .gitignore.tmp
+      if [[ -n "$extra" ]]; then printf '\n%s\n' "$extra" >> .gitignore.tmp; fi
+      mv .gitignore.tmp .gitignore
+    else
+      cp assets/scaffold/gitignore .gitignore
+    fi
+    echo "  write .gitignore"
+  else
+    # Existing project: its .gitignore is never replaced. Append the rules this setup
+    # depends on instead. The leading `/` anchors each rule to the project root so
+    # nested files of the same name stay tracked. A testing config file the project
+    # already commits is its own config (drupal:scaffold won't overwrite it), so it
+    # is not ignored.
+    echo "==> Appending rules to existing .gitignore"
     [[ -n "$(tail -c1 .gitignore)" ]] && echo >> .gitignore
     for p in /phpcs.xml /phpstan.neon /phpunit.xml; do
       if git ls-files --error-unmatch -- "${p#/}" >/dev/null 2>&1; then
         echo "  skip  $p (tracked by git)"
         continue
       fi
+      grep -qxF "$p" .gitignore || { echo "$p" >> .gitignore; echo "  add   $p"; }
+    done
+    # .env.local holds a server's secrets, settings.local.php local development
+    # overrides (docs/settings.md).
+    # ref.txt is written by every deploy (docs/workflow.md).
+    for p in /.env.local "/$DOCROOT/sites/*/settings.local.php" "/$DOCROOT/ref.txt"; do
       grep -qxF "$p" .gitignore || { echo "$p" >> .gitignore; echo "  add   $p"; }
     done
   fi
@@ -177,38 +293,69 @@ main() {
     if [[ -z "$(ls -A "$d")" ]]; then touch "$d/.gitkeep"; fi
   done
 
-  # Config sync lives outside the docroot and is committed. DDEV's generated
-  # settings.php includes settings.ddev.php, which only sets a default if unset.
-  SETTINGS="$DOCROOT/sites/default/settings.php"
-  if [[ -f "$DOCROOT/sites/default/settings.ddev.php" && -f "$SETTINGS" ]] && ! grep -qE "^\\\$settings\['config_sync_directory'\]" "$SETTINGS"; then
-    chmod u+w "$SETTINGS" "$(dirname "$SETTINGS")"
-    # Insert it above the settings.local.php include and the comment block that
-    # documents it, so settings.local.php can still override it. Without an
-    # include, append it.
-    awk -v sync="\$settings['config_sync_directory'] = '../config/sync';" '
-      { l[NR] = $0 }
-      END {
-        at = NR + 1
-        for (i = 1; i <= NR; i++) {
-          if (l[i] ~ /^(# ?)?if \(file_exists\(\$app_root.*settings\.local\.php/) { at = i; break }
-        }
-        for (i = at - 1; at <= NR && i > 0 && l[i] ~ /^(#.*|[[:space:]]*\*.*|\/\*\*.*|[[:space:]]*)$/; i--) {
-          if (l[i] ~ /^\/\*\*/) { at = i; break }
-        }
-        for (i = 1; i <= NR; i++) { if (i == at) print sync "\n"; print l[i] }
-        if (at > NR) print "\n" sync
-      }' "$SETTINGS" > "$SETTINGS.tmp"
-    # Write back in place to keep the file's permissions.
-    cat "$SETTINGS.tmp" > "$SETTINGS"
-    rm -f "$SETTINGS.tmp"
-    # Enable the (commented-out) settings.local.php include at the end of settings.php,
-    # unless the project already includes it, which would include it twice.
-    if ! grep -qE "^[[:space:]]*include .*settings\.local\.php" "$SETTINGS"; then
-      sed -i.bak '/^# if (file_exists(\$app_root.*settings\.local\.php/,/^# }/s/^# \{0,1\}//' "$SETTINGS"
-      rm -f "$SETTINGS.bak"
-    fi
-    echo "  patch $SETTINGS"
+  # Secrets on servers come from .env.local, read by settings.env.php (docs/settings.md).
+  if [[ ! -e "$DOCROOT/sites/default/settings.env.php" ]]; then
+    fetch settings.env.php "$DOCROOT/sites/default/settings.env.php"
+    echo "  write $DOCROOT/sites/default/settings.env.php"
   fi
+  if [[ ! -e .env.example ]]; then
+    fetch env.example .env.example
+    echo "  write .env.example"
+  fi
+
+  SETTINGS="$DOCROOT/sites/default/settings.php"
+  if [[ -f "$DOCROOT/sites/default/settings.ddev.php" && -f "$SETTINGS" ]]; then
+    chmod u+w "$SETTINGS" "$(dirname "$SETTINGS")"
+    # Config sync lives outside the docroot and is committed. DDEV's generated
+    # settings.php includes settings.ddev.php, which only sets a default if unset.
+    if ! grep -qE "^\\\$settings\['config_sync_directory'\]" "$SETTINGS"; then
+      insert_before_local_include "$SETTINGS" "\$settings['config_sync_directory'] = '../config/sync';"
+      # Enable the (commented-out) settings.local.php include at the end of settings.php,
+      # unless the project already includes it, which would include it twice.
+      if ! grep -qE "^[[:space:]]*include .*settings\.local\.php" "$SETTINGS"; then
+        # shellcheck disable=SC2016 # A sed pattern matching PHP's $app_root literally.
+        sed -i.bak '/^# if (file_exists(\$app_root.*settings\.local\.php/,/^# }/s/^# \{0,1\}//' "$SETTINGS"
+        rm -f "$SETTINGS.bak"
+      fi
+      echo "  patch $SETTINGS (config_sync_directory)"
+    fi
+    # Wire in settings.env.php and the hash_salt check, but only into a settings.php
+    # without secrets: a site that still has them there moves them by hand first.
+    if ! grep -q "settings\.env\.php" "$SETTINGS"; then
+      if [[ -n "$(settings_secrets "$SETTINGS")" ]]; then
+        echo "  skip  $SETTINGS (holds secrets; wire in settings.env.php by hand, see docs/settings.md)"
+      else
+        insert_before_local_include "$SETTINGS" "include __DIR__ . '/settings.env.php';"
+        fetch settings.guard.php.txt "$SETTINGS.guard"
+        cat "$SETTINGS.guard" >> "$SETTINGS"
+        rm -f "$SETTINGS.guard"
+        echo "  patch $SETTINGS (settings.env.php, hash_salt check)"
+      fi
+    fi
+  fi
+
+  check_settings
+
+  echo "==> Branch workflow and just"
+  for f in pull_request_template.md workflows/no-dev-merges.yml workflows/reset-dev.yml; do
+    dest=".github/$f"
+    [[ -e "$dest" ]] && { echo "  skip  $dest (exists)"; continue; }
+    mkdir -p "$(dirname "$dest")"
+    fetch "github/$f" "$dest"
+    echo "  write $dest"
+  done
+  # happiness.just is managed here: always the latest. The justfile is the site's own.
+  fetch happiness.just happiness.just
+  echo "  write happiness.just"
+  if [[ ! -e justfile && ! -e Justfile && ! -e .justfile ]]; then
+    fetch justfile justfile
+    echo "  write justfile"
+  elif ! grep -qE "^import +['\"]happiness\.just['\"]" justfile Justfile .justfile 2>/dev/null; then
+    echo "  warn  The justfile doesn't import happiness.just. Add \"import 'happiness.just'\" to it" \
+      "(and remove its own recipes of the same names), see docs/workflow.md."
+  fi
+  update_agents_md
+  command -v just >/dev/null || echo "  warn  just is not installed: see docs/workflow.md."
 
   if [[ $INSTALL -eq 1 ]]; then
     echo "==> Installing Drupal"

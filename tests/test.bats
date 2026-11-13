@@ -111,7 +111,8 @@ teardown() {
   if [ -n "${GITHUB_ENV:-}" ]; then
     [ -e "${GITHUB_ENV:-}" ] && echo "TESTDIR=${TESTDIR}" >> "${GITHUB_ENV}"
   else
-    [ "${TESTDIR}" != "" ] && rm -rf "${TESTDIR}"
+    # Drupal's installer makes site directories read-only.
+    [ "${TESTDIR}" != "" ] && chmod -R u+w "${TESTDIR}" && rm -rf "${TESTDIR}"
   fi
 }
 
@@ -134,6 +135,76 @@ teardown() {
   run ddev import-db --file="${TESTDIR}/db.sql.gz"
   assert_failure
   assert_output --partial "DATABASE NOT SANITIZED: 3 user account(s)"
+}
+
+@test "setup.sh on a new site" {
+  set -eu -o pipefail
+  echo "# setup.sh with project ${PROJNAME} in $(pwd)" >&3
+  git init -q
+
+  run bash "${DIR}/setup.sh"
+  assert_success
+  refute_output --partial "warn  web/sites/"
+
+  # The scaffolded .gitignore must be in place even though drupal/ai_best_practices
+  # creates a .gitignore of its own first, and keep that plugin's rule.
+  assert_file_contains .gitignore '^/vendor/$'
+  assert_file_contains .gitignore '^/ai_best_practices.yaml$'
+  run git check-ignore -q .env.local
+  assert_success
+  run git check-ignore -q web/ref.txt
+  assert_success
+  run git check-ignore -q web/sites/default/settings.local.php
+  assert_success
+  run git check-ignore -q web/sites/default/settings.php
+  assert_failure
+  run git check-ignore -q web/sites/default/settings.env.php
+  assert_failure
+  assert_file_exists .env.example
+
+  # The branch workflow and just.
+  assert_file_exists .github/pull_request_template.md
+  assert_file_exists .github/workflows/no-dev-merges.yml
+  assert_file_exists .github/workflows/reset-dev.yml
+  assert_file_contains justfile "^import 'happiness.just'$"
+  assert_file_exists happiness.just
+  run grep -c '^<!-- happiness:start -->$' AGENTS.md
+  assert_output "1"
+  assert_file_contains AGENTS.md '^<!-- ai-best-practices:start -->'
+
+  # settings.php is committed, so it must hold no secrets: DDEV provides them in
+  # settings.ddev.php, which DDEV keeps out of git.
+  run grep -E "^\\\$settings\['hash_salt'\] = '';$" web/sites/default/settings.php
+  assert_success
+  run git check-ignore -q web/sites/default/settings.ddev.php
+  assert_success
+  run ddev drush status --field=bootstrap
+  assert_output "Successful"
+
+  # Outside DDEV (a server), the secrets come from .env.local.
+  run ddev exec env -u IS_DDEV_PROJECT vendor/bin/drush status --field=bootstrap
+  assert_output --partial ".env.local is missing or not readable"
+  printf 'DRUPAL_ENV=dev\nDB_NAME=db\nDB_USER=db\nDB_PASSWORD=db\nDB_HOST=db\nHASH_SALT=abc123\n' > .env.local
+  run ddev exec env -u IS_DDEV_PROJECT vendor/bin/drush status --field=bootstrap
+  assert_output "Successful"
+
+  # With a committed fingerprint, a salt that changed, here by a newline as when it
+  # was once moved by hand, stops the site.
+  local fingerprint
+  fingerprint="$(printf 'abc123' | sha256sum | cut -d' ' -f1)"
+  perl -pi -e 's/^(\$settings\[\x27hash_salt_sha256\x27\] = \[)$/$1\n  \x27dev\x27 => \x27'"${fingerprint}"'\x27,/' web/sites/default/settings.php
+  run grep -c "  'dev' => '${fingerprint}'," web/sites/default/settings.php
+  assert_output "1"
+  run ddev exec env -u IS_DDEV_PROJECT vendor/bin/drush status --field=bootstrap
+  assert_output "Successful"
+  printf 'DRUPAL_ENV=dev\nDB_NAME=db\nDB_USER=db\nDB_PASSWORD=db\nDB_HOST=db\nHASH_SALT="abc123\\n"\n' > .env.local
+  run ddev exec env -u IS_DDEV_PROJECT vendor/bin/drush status --field=bootstrap
+  assert_output --partial "hash_salt doesn't match \$settings['hash_salt_sha256']['dev']"
+
+  # The right salt in another environment, whose entry is missing, stops it too.
+  printf 'DRUPAL_ENV=prod\nDB_NAME=db\nDB_USER=db\nDB_PASSWORD=db\nDB_HOST=db\nHASH_SALT=abc123\n' > .env.local
+  run ddev exec env -u IS_DDEV_PROJECT vendor/bin/drush status --field=bootstrap
+  assert_output --partial "hash_salt doesn't match \$settings['hash_salt_sha256']['prod']"
 }
 
 @test "multisite" {

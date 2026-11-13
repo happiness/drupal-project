@@ -15,8 +15,11 @@
 /web/sites/*/settings.local.php
 /web/sites/*/services.local.yml
 /web/sites/simpletest/
+# Written by every deploy: the commit the server runs (docs/workflow.md)
+/web/ref.txt
 
-# Local environment
+# Local environment, and a server's secrets (docs/settings.md)
+/.env.local
 /**/.env
 /**/.envrc
 .idea/
