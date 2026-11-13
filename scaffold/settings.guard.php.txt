@@ -1,0 +1,23 @@
+
+// hash_salt check. Only for sites where a changed hash_salt causes lasting damage,
+// such as a login module that links accounts through a value derived from it.
+// Other sites leave the list empty, which turns the check off.
+//
+// One entry per environment, keyed by DRUPAL_ENV in that server's .env.local. The
+// value is the sha256 of the server's hash_salt (not secret), printed on the server by:
+//   vendor/bin/drush php:eval 'echo hash("sha256", \Drupal\Core\Site\Settings::getHashSalt()), PHP_EOL;'
+// For example:
+//   'prod' => '6ca13d52ca70c883e0f0bb101e425a89e8624de51db2d2392593af6a84118090',
+//
+// Outside DDEV, the site then refuses to start when its salt doesn't match its
+// environment's entry. Keep this last in settings.php. See docs/settings.md in
+// happiness/drupal-project.
+$settings['hash_salt_sha256'] = [
+];
+if ($settings['hash_salt_sha256'] && getenv('IS_DDEV_PROJECT') !== 'true') {
+  $happiness_env = $env_local['DRUPAL_ENV'] ?? '';
+  if (hash('sha256', $settings['hash_salt']) !== ($settings['hash_salt_sha256'][$happiness_env] ?? NULL)) {
+    throw new \RuntimeException("hash_salt doesn't match \$settings['hash_salt_sha256']['$happiness_env'] in settings.php. See docs/settings.md.");
+  }
+  unset($happiness_env);
+}
