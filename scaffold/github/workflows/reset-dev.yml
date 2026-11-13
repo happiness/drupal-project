@@ -1,11 +1,11 @@
-# Resets dev to the default branch after every release (a v* tag), and merges back the
+# Resets dev to the default branch after every release (a YYYY-MM-DD-N tag), and merges back the
 # open pull requests that were on it. Can also be run by hand from the Actions tab.
 # The logic lives in happiness/drupal-project, see its docs/workflow.md.
 name: reset-dev
 
 on:
   push:
-    tags: ['v*']
+    tags: ['[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-*']
   workflow_dispatch:
 
 permissions:

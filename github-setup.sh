@@ -8,7 +8,7 @@
 #   the deputy only when the responsible person's GitHub status is Busy,
 # - Write for the developers team,
 # - rulesets: no direct pushes to the default branch, the no-dev-merges check must
-#   pass, only the team creates release tags (v*), and release tags are never moved
+#   pass, only the team creates release tags (YYYY-MM-DD-N), and release tags are never moved
 #   or deleted,
 # - a branch protection rule: only the team merges to the default branch (and the
 #   organisation's owners, as admins),
@@ -186,12 +186,12 @@ ruleset "$(jq -n --arg check "$STATUS_CHECK" '{
   ]}')"
 ruleset "$(jq -n --argjson bypass "$(team_bypass always)" '{
   name: "release tags: only maintainers create", target: "tag", enforcement: "active",
-  conditions: {ref_name: {include: ["refs/tags/v*"], exclude: []}},
+  conditions: {ref_name: {include: ["refs/tags/20??-??-??-*"], exclude: []}},
   bypass_actors: $bypass,
   rules: [{type: "creation"}]}')"
 ruleset "$(jq -n '{
   name: "release tags: never moved or deleted", target: "tag", enforcement: "active",
-  conditions: {ref_name: {include: ["refs/tags/v*"], exclude: []}},
+  conditions: {ref_name: {include: ["refs/tags/20??-??-??-*"], exclude: []}},
   bypass_actors: [],
   rules: [{type: "update"}, {type: "deletion"}, {type: "non_fast_forward"}]}')"
 

@@ -17,7 +17,7 @@ there, not this block. Background in its `docs/workflow.md` and `docs/settings.m
   Never merge `dev` into another branch and never start a branch from it: the
   `no-dev-merges` check then stops the pull request.
 - Only the site's maintainers team can merge to the default branch and create
-  release tags (`v*`). When the user asks you to merge or release, do it with their
+  release tags (`YYYY-MM-DD-N`, e.g. `2026-11-13-1`). When the user asks you to merge or release, do it with their
   account. GitHub refuses if they are not in the team: say so, don't look for a way
   around it.
 - Every release tag resets `dev` to the default branch and merges back the open pull

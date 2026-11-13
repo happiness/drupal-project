@@ -10,7 +10,7 @@ what to do instead. The git commands you know still work.
 |---|---|---|
 | DEV | `dev` | on every push to `dev` |
 | TEST, where a site has one | the default branch | on every merge |
-| PROD | a release tag (`v*`) on the default branch | when the maintainers tag a release |
+| PROD | a release tag (`YYYY-MM-DD-N`) on the default branch | when the maintainers tag a release |
 
 How releases are tagged and deployed is described separately (to come). Whatever the
 tool, every deploy writes the full commit id it deployed to `web/ref.txt`, so anyone

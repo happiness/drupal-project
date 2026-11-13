@@ -107,7 +107,7 @@ publish() {
     {\"number\": 1, \"headRefName\": \"201-open\", \"headRefOid\": \"$(git rev-parse 201-open)\", \"isCrossRepository\": false}
   ]"
   export CONFLICTS_FILE="${BATS_TEST_TMPDIR}/conflicts"
-  run bash "${SCRIPTS}/reset-dev.sh" main "release v1"
+  run bash "${SCRIPTS}/reset-dev.sh" main "release 2026-11-13-1"
   assert_success
   assert_output --partial "- #1 201-open"
   assert_output --partial "Not merged back because of conflicts"
@@ -126,7 +126,7 @@ publish() {
   run git merge-base --is-ancestor 201-open dev
   assert_failure
   run git log -1 --format=%s dev~1
-  assert_output "Reset dev to main (release v1)."
+  assert_output "Reset dev to main (release 2026-11-13-1)."
 
   # A branch from main still can't be fast-forwarded into the new dev.
   publish dev 201-open
@@ -141,7 +141,7 @@ publish() {
   git merge -q --no-ff --no-edit dev
   publish main dev
   export PRS_JSON="[{\"number\": 5, \"headRefName\": \"205-dev-merged-in\", \"headRefOid\": \"$(git rev-parse 205-dev-merged-in)\", \"isCrossRepository\": false}]"
-  run bash "${SCRIPTS}/reset-dev.sh" main "release v2"
+  run bash "${SCRIPTS}/reset-dev.sh" main "release 2026-11-13-2"
   assert_success
   refute_output --partial "#5"
   run git rev-list --count main..dev
