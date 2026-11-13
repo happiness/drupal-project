@@ -1,0 +1,38 @@
+# Reusable workflow, called by every site's .github/workflows/no-dev-merges.yml on its
+# pull requests. Stops a pull request that contains commits made on dev, which holds
+# unfinished work. See docs/workflow.md.
+name: no-dev-merges
+
+on:
+  workflow_call:
+    inputs:
+      scripts-ref:
+        description: The ref of happiness/drupal-project to take the script from.
+        type: string
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - uses: actions/checkout@v4
+        with:
+          repository: happiness/drupal-project
+          ref: ${{ inputs.scripts-ref }}
+          path: .drupal-project
+          sparse-checkout: .github/scripts
+
+      - name: Check that the branch contains nothing from dev
+        env:
+          BASE: ${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: bash .drupal-project/.github/scripts/no-dev-merges.sh "$BASE" "$HEAD_REF"

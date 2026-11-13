@@ -1,0 +1,57 @@
+# Reusable workflow, called by every site's .github/workflows/reset-dev.yml after each
+# release. Resets dev to the default branch and merges back the open pull requests
+# that were on it. Without it, dev keeps collecting work that never reaches main. See
+# docs/workflow.md.
+name: reset-dev
+
+on:
+  workflow_call:
+    inputs:
+      scripts-ref:
+        description: The ref of happiness/drupal-project to take the script from.
+        type: string
+        default: main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - uses: actions/checkout@v4
+        with:
+          repository: happiness/drupal-project
+          ref: ${{ inputs.scripts-ref }}
+          path: .drupal-project
+          sparse-checkout: .github/scripts
+
+      - name: Reset dev
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ github.event.repository.default_branch }}
+          REASON: ${{ github.ref_type == 'tag' && format('release {0}', github.ref_name) || format('run by {0}', github.actor) }}
+          CONFLICTS_FILE: ${{ runner.temp }}/conflicts
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          old="$(git rev-parse -q --verify origin/dev || true)"
+          bash .drupal-project/.github/scripts/reset-dev.sh "$BASE" "$REASON"
+          git push --force-with-lease="dev:${old}" origin dev
+
+      - name: Tell the pull requests that could not be merged back
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CONFLICTS_FILE: ${{ runner.temp }}/conflicts
+        run: |
+          [ -s "$CONFLICTS_FILE" ] || exit 0
+          while read -r number; do
+            gh pr comment "$number" --body "dev was reset to the default branch after a release, and this branch could not be merged back into it because of conflicts. To show it on DEV again, merge it into dev by hand: \`git switch dev && git pull && git merge --no-ff <this branch> && git push\`."
+          done < "$CONFLICTS_FILE"

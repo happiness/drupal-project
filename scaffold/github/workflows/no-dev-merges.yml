@@ -1,0 +1,14 @@
+# Stops a pull request that contains commits made on dev. A required status check.
+# The logic lives in happiness/drupal-project, see its docs/workflow.md.
+name: no-dev-merges
+
+on:
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  no-dev-merges:
+    uses: happiness/drupal-project/.github/workflows/no-dev-merges.yml@main

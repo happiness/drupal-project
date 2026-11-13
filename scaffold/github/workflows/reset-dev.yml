@@ -1,0 +1,20 @@
+# Resets dev to the default branch after every release (a v* tag), and merges back the
+# open pull requests that were on it. Can also be run by hand from the Actions tab.
+# The logic lives in happiness/drupal-project, see its docs/workflow.md.
+name: reset-dev
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: reset-dev
+
+jobs:
+  reset-dev:
+    uses: happiness/drupal-project/.github/workflows/reset-dev.yml@main
