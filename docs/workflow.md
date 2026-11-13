@@ -12,9 +12,9 @@ what to do instead. The git commands you know still work.
 | TEST, where a site has one | the default branch | on every merge |
 | PROD | a release tag (`YYYY-MM-DD-N`) on the default branch | when the maintainers tag a release |
 
-How releases are tagged and deployed is described separately (to come). Whatever the
-tool, every deploy writes the full commit id it deployed to `web/ref.txt`, so anyone
-can see what a server runs:
+How releases are tagged and deployed is in [Releases and deploys](release.md). Every
+deploy writes the full commit id it deployed to `web/ref.txt`, so anyone can see what
+a server runs:
 
 ```sh
 curl -s https://<site>/ref.txt

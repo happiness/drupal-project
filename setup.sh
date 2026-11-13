@@ -336,13 +336,19 @@ main() {
   check_settings
 
   echo "==> Branch workflow and just"
-  for f in pull_request_template.md workflows/no-dev-merges.yml workflows/qa.yml workflows/reset-dev.yml; do
+  for f in pull_request_template.md workflows/no-dev-merges.yml workflows/qa.yml workflows/reset-dev.yml \
+    workflows/deploy-dev.yml workflows/deploy-prod.yml; do
     dest=".github/$f"
     [[ -e "$dest" ]] && { echo "  skip  $dest (exists)"; continue; }
     mkdir -p "$(dirname "$dest")"
     fetch "github/$f" "$dest"
     echo "  write $dest"
   done
+  # The site's servers, for the deploy workflows (docs/release.md).
+  if [[ ! -e deploy.php ]]; then
+    fetch deploy.php deploy.php
+    echo "  write deploy.php (fill in the hosts)"
+  fi
   # happiness.just is managed here: always the latest. The justfile is the site's own.
   fetch happiness.just happiness.just
   echo "  write happiness.just"

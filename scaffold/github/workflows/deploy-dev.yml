@@ -1,0 +1,20 @@
+# Deploys dev to DEV on every push to it, and after reset-dev. Can also be run by
+# hand from the Actions tab. The logic lives in happiness/drupal-project, see its
+# docs/release.md.
+name: deploy-dev
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    uses: happiness/drupal-project/.github/workflows/deploy.yml@main
+    with:
+      host: dev
+      ref: dev
+    secrets: inherit

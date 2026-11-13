@@ -52,7 +52,9 @@ Set `SCAFFOLD_URL` to fetch scaffold files from another location when piping fro
 7. Warns when a `settings.php` is ignored by git or sets `hash_salt` or a database password, and when
    `.env.local` or a `settings.local.php` is tracked by git.
 8. Adds the [branch workflow](docs/workflow.md): `.github/pull_request_template.md`, the workflows
-   `.github/workflows/no-dev-merges.yml`, `qa.yml` and `reset-dev.yml`, and its block in `AGENTS.md`. Writes
+   `.github/workflows/no-dev-merges.yml`, `qa.yml` and `reset-dev.yml`, and its block in `AGENTS.md`; and
+   for [deploys](docs/release.md), `deploy.php` with the site's hosts to fill in and the workflows
+   `deploy-dev.yml` and `deploy-prod.yml`. Writes
    `happiness.just`, the shared `just` recipes, and a `justfile` that imports it.
 9. Creates `config/sync`, `modules/custom` and `themes/custom`, with a `.gitkeep` in each one that is empty.
 
@@ -71,6 +73,8 @@ How every Drupal site we build is run:
   and changed.
 - [Branches, pull requests and DEV](docs/workflow.md): a branch and pull request per ticket,
   `dev` for showing work on DEV, only the site's maintainers merge, and `just`.
+- [Releases and deploys](docs/release.md): `just release` tags `YYYY-MM-DD-N`, GitHub Actions
+  deploys `dev` to DEV and release tags to PROD with Deployer, and how a server is set up for it.
 
 ## Database sanitization
 

@@ -79,6 +79,22 @@ dev branch=`git branch --show-current`:
     git switch -q "$branch"
     echo "$branch is merged into dev. DEV is deployed from dev."
 
+# Release: tag the default branch with today's date (YYYY-MM-DD-N), which deploys it to PROD
+[confirm("Tag the default branch as a release and deploy it to PROD? [y/N]")]
+release:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    base="$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)"
+    git fetch -q --tags origin "$base"
+    today="$(date +%F)"
+    n=1
+    while git rev-parse -q --verify "refs/tags/$today-$n" >/dev/null; do n=$((n + 1)); done
+    tag="$today-$n"
+    commit="$(git rev-parse "origin/$base")"
+    gh release create "$tag" --target "$commit" --title "$tag" --generate-notes
+    echo "Released $tag: $(git log -1 --format='%h %s' "$commit")"
+    echo "PROD is being deployed, and dev reset. Follow it with: gh run watch"
+
 # Reset dev to the default branch now, keeping the open pull requests that are on it
 reset-dev:
     gh workflow run reset-dev.yml

@@ -176,6 +176,9 @@ teardown() {
   assert_file_exists .github/pull_request_template.md
   assert_file_exists .github/workflows/no-dev-merges.yml
   assert_file_exists .github/workflows/qa.yml
+  assert_file_exists .github/workflows/deploy-dev.yml
+  assert_file_exists .github/workflows/deploy-prod.yml
+  assert_file_contains deploy.php "require __DIR__ . '/.drupal-project/deployer/drupal.php';"
   assert_file_exists .github/workflows/reset-dev.yml
   assert_file_contains justfile "^import 'happiness.just'$"
   assert_file_exists happiness.just
@@ -256,6 +259,50 @@ PHP
   run ddev exec bash qa.sh
   assert_failure
   assert_output --partial "One or more code checks failed"
+  rm -rf qa.sh web/modules/custom/qa_test
+
+  # Deploys with Deployer and deployer/drupal.php, inside the web container to
+  # /tmp/deploytest as a server would, with the shared .env.local on DDEV's database.
+  mkdir -p .drupal-project/deployer
+  cp "${DIR}/deployer/drupal.php" .drupal-project/deployer/
+  cat > deploy-test.php <<'PHP'
+<?php
+
+namespace Deployer;
+
+require __DIR__ . '/.drupal-project/deployer/drupal.php';
+
+localhost('prod')->setDeployPath('/tmp/deploytest');
+PHP
+  # drush deploy refuses to import an empty config/sync, as it would on a server.
+  run ddev drush config:export -y
+  assert_success
+  git -c user.email=test@example.com -c user.name=Test -c commit.gpgsign=false add -A
+  git -c user.email=test@example.com -c user.name=Test -c commit.gpgsign=false commit -q -m "Site."
+  local commit
+  commit="$(git rev-parse HEAD)"
+  # The salt whose fingerprint settings.php got above, so the hash_salt check passes.
+  local env_local='DRUPAL_ENV=dev\nDB_NAME=db\nDB_USER=db\nDB_PASSWORD=db\nDB_HOST=db\nHASH_SALT=abc123\n'
+  run ddev exec "curl -fsSL -o /tmp/dep.phar https://github.com/deployphp/deployer/releases/download/v8.0.5/deployer.phar && mkdir -p /tmp/deploytest/shared && printf '${env_local}' > /tmp/deploytest/shared/.env.local"
+  assert_success
+  local dep='cd /var/www/html && env -u IS_DDEV_PROJECT BUILD_PATH=/var/www/html php /tmp/dep.phar deploy prod -f deploy-test.php --no-interaction'
+
+  run ddev exec "$dep"
+  assert_success
+  run ddev exec "readlink /tmp/deploytest/current; cat /tmp/deploytest/current/web/ref.txt; readlink /tmp/deploytest/current/.env.local; test -e /tmp/deploytest/current/.git || echo 'no .git'"
+  assert_line "releases/1"
+  assert_line "${commit}"
+  assert_line "../../shared/.env.local"
+  assert_line "no .git"
+  run ddev exec "cd /tmp/deploytest/current && env -u IS_DDEV_PROJECT vendor/bin/drush status --field=bootstrap"
+  assert_output "Successful"
+
+  # When drush deploy fails, the deploy fails and the site keeps the previous release.
+  run ddev exec "printf '${env_local/DB_PASSWORD=db/DB_PASSWORD=wrong}' > /tmp/deploytest/shared/.env.local && $dep"
+  assert_failure
+  run ddev exec "readlink /tmp/deploytest/current; test -e /tmp/deploytest/.dep/deploy.lock && echo locked || echo unlocked"
+  assert_line "releases/1"
+  assert_line "unlocked"
 }
 
 @test "multisite" {

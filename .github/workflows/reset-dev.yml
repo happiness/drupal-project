@@ -13,6 +13,7 @@ on:
         default: main
 
 permissions:
+  actions: write
   contents: write
   pull-requests: write
 
@@ -45,6 +46,19 @@ jobs:
           old="$(git rev-parse -q --verify origin/dev || true)"
           bash .drupal-project/.github/scripts/reset-dev.sh "$BASE" "$REASON"
           git push --force-with-lease="dev:${old}" origin dev
+
+      # A push with the workflow's own token starts no workflows, so deploy-dev is
+      # started here.
+      - name: Deploy the new dev to DEV
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh workflow view deploy-dev.yml >/dev/null 2>&1; then
+            gh workflow run deploy-dev.yml --ref dev
+            echo "Started deploy-dev for the new dev." | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "The site has no deploy-dev workflow: DEV was not deployed." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Tell the pull requests that could not be merged back
         env:

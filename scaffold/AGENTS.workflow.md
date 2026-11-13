@@ -27,6 +27,14 @@ there, not this block. Background in its `docs/workflow.md` and `docs/settings.m
   requests that were on it (`.github/workflows/reset-dev.yml`). A branch without a
   pull request is not put back.
 
+### Deploys and releases
+
+- DEV is deployed on every push to `dev`. PROD is deployed when a release tag is
+  created: `just release`, only when the user asks, and only from the default branch.
+- Deploys run in GitHub Actions only, with Deployer: `deploy.php` lists the site's
+  hosts, the steps come from happiness/drupal-project. Never deploy from your machine.
+- Every server serves the commit it runs at `/ref.txt`.
+
 ### Settings and secrets
 
 - `settings.php` is committed and holds all logic. Secrets are only values in

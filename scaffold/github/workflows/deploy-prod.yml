@@ -1,0 +1,22 @@
+# Deploys a release tag (YYYY-MM-DD-N) to PROD when it is created: `just release`.
+# To redeploy or roll back, run it from the Actions tab and choose the tag under
+# "Use workflow from". The logic lives in happiness/drupal-project, see its
+# docs/release.md.
+name: deploy-prod
+
+on:
+  push:
+    tags: ['[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    uses: happiness/drupal-project/.github/workflows/deploy.yml@main
+    with:
+      host: prod
+      ref: ${{ github.ref_name }}
+      release-tag-only: true
+    secrets: inherit

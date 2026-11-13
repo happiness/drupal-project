@@ -12,7 +12,7 @@ check: lint test-workflow
 # Lint the shell scripts, the PHP and the justfiles
 lint:
     shellcheck setup.sh github-setup.sh .github/scripts/*.sh scaffold/ddev/sanitize/sanitize.sh scaffold/ddev/commands/web/*
-    php -l scaffold/settings.env.php
+    for f in scaffold/settings.env.php deployer/drupal.php scaffold/deploy.php; do php -l "$f"; done
     just --justfile scaffold/justfile --working-directory . --list >/dev/null
     just --justfile scaffold/happiness.just --working-directory . --list >/dev/null
 

@@ -18,6 +18,9 @@
 # Written by every deploy: the commit the server runs (docs/workflow.md)
 /web/ref.txt
 
+# happiness/drupal-project, checked out by the deploy workflows (docs/release.md)
+/.drupal-project/
+
 # Local environment, and a server's secrets (docs/settings.md)
 /.env.local
 /**/.env

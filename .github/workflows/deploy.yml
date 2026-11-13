@@ -1,0 +1,113 @@
+# Reusable workflow, called by every site's .github/workflows/deploy-dev.yml and
+# deploy-prod.yml. Builds the site (composer install --no-dev) with the PHP version
+# in .ddev/config.yaml and deploys it with Deployer and deployer/drupal.php. See
+# docs/release.md.
+#
+# The site's GitHub environment named like the host (dev or prod) holds:
+#   secret   DEPLOY_SSH_KEY      the private key of the server's deploy user
+#   variable DEPLOY_KNOWN_HOSTS  the server's host keys: ssh-keyscan -t ed25519 <ip>
+name: deploy
+
+on:
+  workflow_call:
+    inputs:
+      host:
+        description: The host in the site's deploy.php, dev or prod.
+        type: string
+        required: true
+      ref:
+        description: The branch or tag to deploy.
+        type: string
+        required: true
+      release-tag-only:
+        description: Refuse anything but a release tag (YYYY-MM-DD-N), for PROD.
+        type: boolean
+        default: false
+      scripts-ref:
+        description: The ref of happiness/drupal-project to take the recipe from.
+        type: string
+        default: main
+    # DEPLOY_SSH_KEY is an environment secret: the job's environment gives access to
+    # it, so the caller passes nothing.
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.ref }} to ${{ inputs.host }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.host }}
+    timeout-minutes: 30
+    concurrency:
+      group: deploy-${{ inputs.host }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: actions/checkout@v4
+        with:
+          repository: happiness/drupal-project
+          ref: ${{ inputs.scripts-ref }}
+          path: .drupal-project
+          sparse-checkout: deployer
+
+      - name: Check the settings
+        env:
+          KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+          HOST: ${{ inputs.host }}
+          REF: ${{ inputs.ref }}
+          REF_TYPE: ${{ github.ref_type }}
+          TAG_ONLY: ${{ inputs.release-tag-only }}
+        run: |
+          if [ "$TAG_ONLY" = true ] && { [ "$REF_TYPE" != tag ] || [[ ! "$REF" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]+$ ]]; }; then
+            echo "::error::$HOST only gets release tags (YYYY-MM-DD-N), not the $REF_TYPE '$REF'. To redeploy or roll back, run the workflow and choose a tag under \"Use workflow from\"."
+            exit 1
+          fi
+          [ -f deploy.php ] || { echo "::error::The site has no deploy.php. See docs/release.md in happiness/drupal-project."; exit 1; }
+          if grep -q CHANGE-ME deploy.php; then
+            echo "::error::deploy.php still has CHANGE-ME values. Fill in the hosts."
+            exit 1
+          fi
+          [ -n "$KNOWN_HOSTS" ] || { echo "::error::The variable DEPLOY_KNOWN_HOSTS is missing in the GitHub environment $HOST."; exit 1; }
+
+      - name: Read the PHP version from .ddev/config.yaml
+        id: php
+        run: |
+          version="$(grep -oP '^php_version:\s*["'\'']?\K[0-9.]+' .ddev/config.yaml || true)"
+          echo "version=${version:-8.3}" >> "$GITHUB_OUTPUT"
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ steps.php.outputs.version }}
+          extensions: gd
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer
+          key: composer-${{ steps.php.outputs.version }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ steps.php.outputs.version }}-
+
+      - name: Build
+        run: composer install --no-dev --no-interaction --no-progress --prefer-dist --optimize-autoloader
+
+      - name: Deploy
+        uses: deployphp/action@v1
+        env:
+          BUILD_PATH: ${{ github.workspace }}
+          DEPLOY_REF: ${{ inputs.ref }}
+        with:
+          dep: deploy ${{ inputs.host }}
+          deployer-version: '8.0.5'
+          private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+          known-hosts: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+
+      - name: Summary
+        env:
+          HOST: ${{ inputs.host }}
+          REF: ${{ inputs.ref }}
+        run: echo "Deployed $REF ($(git rev-parse --short HEAD)) to $HOST." >> "$GITHUB_STEP_SUMMARY"
