@@ -9,6 +9,9 @@ there, not this block. Background in its `docs/workflow.md` and `docs/settings.m
 - Work on a branch per ticket, started from the default branch (`main` or `master`)
   and named after the ticket, as the `git-branch-naming` skill says. Never commit to
   the default branch or to `dev`.
+- Run `just check` before pushing: the `qa` check runs the same on every pull request.
+  Don't weaken `phpcs.xml.dist`, `phpstan.neon.dist` or `phpunit.xml.dist` to make it
+  pass; fix the code, or ask the user.
 - Open a pull request to the default branch for every branch, as a draft until it is
   ready. Fill in `.github/pull_request_template.md`. Write commit messages as the
   `commit-messages` skill says.

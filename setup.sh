@@ -16,7 +16,7 @@
 # Options: --install   run drush site:install afterwards
 set -euo pipefail
 
-SCAFFOLD_FILES=(phpcs.xml phpstan.neon phpunit.xml gitignore)
+QA_FILES=(phpcs.xml.dist phpstan.neon.dist phpunit.xml.dist)
 # Paths relative to .ddev/ (and to scaffold/ddev/).
 DDEV_FILES=(
   commands/web/dr commands/web/phpcbf commands/web/phpcs commands/web/phpstan commands/web/phpunit
@@ -168,18 +168,25 @@ main() {
   grep -q '"drupal/core-recommended"' composer.json \
     || { echo "composer.json does not require drupal/core-recommended" >&2; exit 1; }
 
-  echo "==> Scaffold files"
-  mkdir -p assets/scaffold
-  for f in "${SCAFFOLD_FILES[@]}"; do
-    [[ -e "assets/scaffold/$f" ]] && continue
-    fetch "$f" "assets/scaffold/$f"
+  # The code checks' configuration is committed as *.dist, which the tools read when
+  # there is no file without .dist: that one is an ignored local override. CI uses
+  # the *.dist files, so they are never copied per developer and can't drift apart.
+  echo "==> Code check configuration"
+  for f in "${QA_FILES[@]}"; do
+    if [[ -e "$f" || -e "${f%.dist}" ]]; then
+      echo "  skip  $f (the project has $( [[ -e "$f" ]] && echo "$f" || echo "${f%.dist}"))"
+      continue
+    fi
+    fetch "$f" "$f"
+    if [[ "$f" == phpunit.xml.dist ]]; then
+      # shellcheck disable=SC2016 # $DDEV_PRIMARY_URL expands in the container, not here.
+      PROJECT_URL="$(ddev exec 'echo -n "$DDEV_PRIMARY_URL"' | tr -d '\r')"
+      # `-i.bak` (and removing the backup) is the one form of in-place sed that works on both GNU and BSD/macOS.
+      sed -i.bak "s|%DDEV_PROJECT_URL%|$PROJECT_URL|g" "$f"
+      rm -f "$f.bak"
+    fi
+    echo "  write $f"
   done
-  # shellcheck disable=SC2016 # $DDEV_PRIMARY_URL expands in the container, not here.
-  PROJECT_URL="$(ddev exec 'echo -n "$DDEV_PRIMARY_URL"' | tr -d '\r')"
-  # `-i.bak` (and removing the backup) is the one form of in-place sed that works on both GNU and BSD/macOS.
-  sed -i.bak "s|%DDEV_PROJECT_URL%|$PROJECT_URL|g" assets/scaffold/phpunit.xml
-  rm -f assets/scaffold/phpunit.xml.bak
-  echo "  assets/scaffold ready (DDEV URL: $PROJECT_URL)"
 
   echo "==> DDEV commands and sanitize hook"
   for f in "${DDEV_FILES[@]}"; do
@@ -242,25 +249,25 @@ main() {
   fi
 
   if [[ $HAD_GITIGNORE -eq 0 ]]; then
-    # New project: the scaffolded .gitignore is the base. A .gitignore created by a
-    # Composer plugin above would make drupal:scaffold skip it, so merge the plugin's
-    # rules into it instead.
+    # New project: the scaffolded .gitignore is the base, plus any rules a Composer
+    # plugin (drupal/ai_best_practices) added to a .gitignore of its own above.
     echo "==> .gitignore"
+    fetch gitignore .gitignore.scaffold
     if [[ -f .gitignore ]]; then
-      extra="$(grep -vxF -f assets/scaffold/gitignore .gitignore || true)"
-      cp assets/scaffold/gitignore .gitignore.tmp
+      extra="$(grep -vxF -f .gitignore.scaffold .gitignore || true)"
+      cp .gitignore.scaffold .gitignore.tmp
       if [[ -n "$extra" ]]; then printf '\n%s\n' "$extra" >> .gitignore.tmp; fi
       mv .gitignore.tmp .gitignore
     else
-      cp assets/scaffold/gitignore .gitignore
+      cp .gitignore.scaffold .gitignore
     fi
+    rm -f .gitignore.scaffold
     echo "  write .gitignore"
   else
     # Existing project: its .gitignore is never replaced. Append the rules this setup
     # depends on instead. The leading `/` anchors each rule to the project root so
-    # nested files of the same name stay tracked. A testing config file the project
-    # already commits is its own config (drupal:scaffold won't overwrite it), so it
-    # is not ignored.
+    # nested files of the same name stay tracked. A code check configuration without
+    # .dist that the project already commits is its own, so it is not ignored.
     echo "==> Appending rules to existing .gitignore"
     [[ -n "$(tail -c1 .gitignore)" ]] && echo >> .gitignore
     for p in /phpcs.xml /phpstan.neon /phpunit.xml; do
@@ -277,14 +284,6 @@ main() {
       grep -qxF "$p" .gitignore || { echo "$p" >> .gitignore; echo "  add   $p"; }
     done
   fi
-
-  echo "==> Mapping scaffold files in composer.json"
-  for f in "${SCAFFOLD_FILES[@]}"; do
-    dest="$f"; [[ "$f" == gitignore ]] && dest=.gitignore # stored without the dot in scaffold/
-    ddev composer config --json --merge extra.drupal-scaffold.file-mapping \
-      "{\"[project-root]/$dest\": {\"path\": \"assets/scaffold/$f\", \"mode\": \"replace\", \"overwrite\": false}}"
-  done
-  ddev composer drupal:scaffold
 
   echo "==> Files"
   # .gitkeep only where git would otherwise drop the empty directory.
@@ -337,7 +336,7 @@ main() {
   check_settings
 
   echo "==> Branch workflow and just"
-  for f in pull_request_template.md workflows/no-dev-merges.yml workflows/reset-dev.yml; do
+  for f in pull_request_template.md workflows/no-dev-merges.yml workflows/qa.yml workflows/reset-dev.yml; do
     dest=".github/$f"
     [[ -e "$dest" ]] && { echo "  skip  $dest (exists)"; continue; }
     mkdir -p "$(dirname "$dest")"

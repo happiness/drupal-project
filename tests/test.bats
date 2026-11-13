@@ -152,6 +152,16 @@ teardown() {
   assert_file_contains .gitignore '^/ai_best_practices.yaml$'
   run git check-ignore -q .env.local
   assert_success
+  # The code check configuration is committed as *.dist; the files without .dist are
+  # local overrides.
+  for f in phpcs.xml phpstan.neon phpunit.xml; do
+    assert_file_exists "$f.dist"
+    run git check-ignore -q "$f.dist"
+    assert_failure
+    run git check-ignore -q "$f"
+    assert_success
+  done
+  assert_not_exists assets/scaffold
   run git check-ignore -q web/ref.txt
   assert_success
   run git check-ignore -q web/sites/default/settings.local.php
@@ -165,6 +175,7 @@ teardown() {
   # The branch workflow and just.
   assert_file_exists .github/pull_request_template.md
   assert_file_exists .github/workflows/no-dev-merges.yml
+  assert_file_exists .github/workflows/qa.yml
   assert_file_exists .github/workflows/reset-dev.yml
   assert_file_contains justfile "^import 'happiness.just'$"
   assert_file_exists happiness.just
@@ -205,6 +216,46 @@ teardown() {
   printf 'DRUPAL_ENV=prod\nDB_NAME=db\nDB_USER=db\nDB_PASSWORD=db\nDB_HOST=db\nHASH_SALT=abc123\n' > .env.local
   run ddev exec env -u IS_DDEV_PROJECT vendor/bin/drush status --field=bootstrap
   assert_output --partial "hash_salt doesn't match \$settings['hash_salt_sha256']['prod']"
+  rm .env.local
+
+  # The qa check (.github/scripts/qa.sh) with the committed *.dist configuration:
+  # it passes without custom code, runs unit tests, and fails on a code style error.
+  cp "${DIR}/.github/scripts/qa.sh" qa.sh
+  run ddev exec bash qa.sh
+  assert_success
+  assert_output --partial "No custom code: skipped."
+  mkdir -p web/modules/custom/qa_test/tests/src/Unit
+  printf 'name: QA test\ndescription: Tests the qa check.\ntype: module\ncore_version_requirement: ^11\n' > web/modules/custom/qa_test/qa_test.info.yml
+  cat > web/modules/custom/qa_test/tests/src/Unit/QaTest.php <<'PHP'
+<?php
+
+namespace Drupal\Tests\qa_test\Unit;
+
+use Drupal\Tests\UnitTestCase;
+use PHPUnit\Framework\Attributes\Group;
+
+/**
+ * Tests that the qa check runs unit tests.
+ */
+#[Group('qa_test')]
+class QaTest extends UnitTestCase {
+
+  /**
+   * Tests that TRUE is TRUE.
+   */
+  public function testTruth(): void {
+    $this->assertTrue(TRUE);
+  }
+
+}
+PHP
+  run ddev exec bash qa.sh
+  assert_success
+  assert_output --partial "1 / 1 (100%)"
+  printf '<?php\nfunction qa_test_help( $a ){ return 1; }\n' > web/modules/custom/qa_test/qa_test.module
+  run ddev exec bash qa.sh
+  assert_failure
+  assert_output --partial "One or more code checks failed"
 }
 
 @test "multisite" {

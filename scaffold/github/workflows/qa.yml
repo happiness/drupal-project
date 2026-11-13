@@ -1,0 +1,15 @@
+# PHP_CodeSniffer, PHPStan and the unit and kernel tests on every pull request. A
+# required status check. The logic lives in happiness/drupal-project, see its
+# docs/workflow.md.
+name: qa
+
+on:
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  qa:
+    uses: happiness/drupal-project/.github/workflows/qa.yml@main

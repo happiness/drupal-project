@@ -7,9 +7,9 @@
 # - the team's review assignment: the responsible person gets every review request,
 #   the deputy only when the responsible person's GitHub status is Busy,
 # - Write for the developers team,
-# - rulesets: no direct pushes to the default branch, the no-dev-merges check must
-#   pass, only the team creates release tags (YYYY-MM-DD-N), and release tags are never moved
-#   or deleted,
+# - rulesets: no direct pushes to the default branch, the no-dev-merges and qa checks
+#   must pass, only the team creates release tags (YYYY-MM-DD-N), and release tags are
+#   never moved or deleted,
 # - a branch protection rule: only the team merges to the default branch (and the
 #   organisation's owners, as admins),
 # - .github/CODEOWNERS in the working tree, for you to commit.
@@ -24,7 +24,7 @@ set -euo pipefail
 
 PARENT_TEAM=site-maintainers
 DEVELOPERS_TEAM=developers
-STATUS_CHECK="no-dev-merges / check"
+STATUS_CHECKS='["no-dev-merges / check", "qa / check"]'
 
 usage() { sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 
@@ -169,7 +169,7 @@ BODY="$(jq -n --arg team "$team_slug" '{
   write -X PUT "repos/$repo/branches/$default_branch/protection" >/dev/null
 echo "  protect $default_branch: only $team_slug merges"
 
-ruleset "$(jq -n --arg check "$STATUS_CHECK" '{
+ruleset "$(jq -n --argjson checks "$STATUS_CHECKS" '{
   name: "default branch: pull requests and checks", target: "branch", enforcement: "active",
   conditions: {ref_name: {include: ["~DEFAULT_BRANCH"], exclude: []}},
   bypass_actors: [],
@@ -182,7 +182,7 @@ ruleset "$(jq -n --arg check "$STATUS_CHECK" '{
       required_review_thread_resolution: false, allowed_merge_methods: ["merge"]}},
     {type: "required_status_checks", parameters: {
       strict_required_status_checks_policy: false, do_not_enforce_on_create: false,
-      required_status_checks: [{context: $check}]}}
+      required_status_checks: [$checks[] | {context: .}]}}
   ]}')"
 ruleset "$(jq -n --argjson bypass "$(team_bypass always)" '{
   name: "release tags: only maintainers create", target: "tag", enforcement: "active",

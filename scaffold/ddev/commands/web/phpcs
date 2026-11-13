@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #ddev-silent-no-warn
 
-## Description: Run PHPStan. Uses the config file ./phpcs.xml
-## Usage: phpcs
-## Example: "ddev phpcs"
+## Description: Run PHP_CodeSniffer. Uses phpcs.xml if it exists, else phpcs.xml.dist
+## Usage: phpcs [paths and options]
+## Example: "ddev phpcs" or "ddev phpcs web/modules/custom/foo"
 ## HostWorkingDir: false
 
 ./vendor/bin/phpcs "$@"

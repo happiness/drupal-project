@@ -1,0 +1,55 @@
+# Reusable workflow, called by every site's .github/workflows/qa.yml on its pull
+# requests: PHP_CodeSniffer, PHPStan and the unit and kernel tests on the site's custom
+# code, with the PHP version DDEV uses. A required status check. See docs/workflow.md.
+name: qa
+
+on:
+  workflow_call:
+    inputs:
+      scripts-ref:
+        description: The ref of happiness/drupal-project to take the script from.
+        type: string
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - uses: actions/checkout@v4
+        with:
+          repository: happiness/drupal-project
+          ref: ${{ inputs.scripts-ref }}
+          path: .drupal-project
+          sparse-checkout: .github/scripts
+
+      - name: Read the PHP version from .ddev/config.yaml
+        id: php
+        run: |
+          version="$(grep -oP '^php_version:\s*["'\'']?\K[0-9.]+' .ddev/config.yaml || true)"
+          echo "version=${version:-8.3}" >> "$GITHUB_OUTPUT"
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ steps.php.outputs.version }}
+          extensions: gd, pdo_sqlite
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer
+          key: composer-${{ steps.php.outputs.version }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ steps.php.outputs.version }}-
+
+      - run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Code checks
+        run: bash .drupal-project/.github/scripts/qa.sh

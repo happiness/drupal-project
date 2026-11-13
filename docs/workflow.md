@@ -41,6 +41,11 @@ The file is never committed (`.gitignore`).
 
 - Nobody pushes to the default branch directly: everything goes through a pull
   request.
+- The `qa` check must pass: PHP_CodeSniffer, PHPStan and the unit and kernel tests on
+  the site's custom code, with the committed `phpcs.xml.dist`, `phpstan.neon.dist` and
+  `phpunit.xml.dist` and the PHP version in `.ddev/config.yaml`. Code style warnings
+  are shown but only errors fail it. `just check` runs the same checks locally, in
+  DDEV. A check with nothing to check is skipped, so a new site passes.
 - The `no-dev-merges` check must pass. It stops a pull request with commits made on
   `dev`, that is, when `dev` was merged into the branch or the branch was started
   from `dev`. Its summary says how to fix it: a new branch from the default branch,
@@ -95,9 +100,9 @@ repository and is in `CODEOWNERS`, so it gets the review requests.
 ## Setting up a site
 
 1. Run `setup.sh` (see the README). Among other things it writes
-   `.github/pull_request_template.md`, the workflows `.github/workflows/no-dev-merges.yml`
-   and `reset-dev.yml`, `happiness.just`, a `justfile`, and the workflow block in
-   `AGENTS.md`.
+   `.github/pull_request_template.md`, the workflows `.github/workflows/no-dev-merges.yml`,
+   `qa.yml` and `reset-dev.yml`, `happiness.just`, a `justfile`, the `*.dist`
+   configuration of the code checks, and the workflow block in `AGENTS.md`.
 2. As an organisation owner, from the site's checkout:
 
    ```sh

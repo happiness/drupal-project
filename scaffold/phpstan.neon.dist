@@ -1,0 +1,7 @@
+# Committed and used by CI (the qa check) and by `ddev phpstan`. For local changes,
+# write an ignored phpstan.neon that starts with: includes: [phpstan.neon.dist]
+parameters:
+    level: 2
+    paths:
+        - web/modules/custom
+        - web/themes/custom

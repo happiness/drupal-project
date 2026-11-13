@@ -29,19 +29,19 @@ Set `SCAFFOLD_URL` to fetch scaffold files from another location when piping fro
 
 ## What it does
 
-1. Copies `scaffold/{phpcs.xml,phpstan.neon,phpunit.xml,gitignore}` to `assets/scaffold/` and replaces
-   `%DDEV_PROJECT_URL%` in `phpunit.xml` with the project's DDEV URL.
+1. Writes the code checks' configuration to the project root as `phpcs.xml.dist`, `phpstan.neon.dist` and
+   `phpunit.xml.dist` (with the project's DDEV URL), to be committed: the tools and CI's `qa` check read them.
+   `phpcs.xml`, `phpstan.neon` and `phpunit.xml` stay free for ignored local overrides.
 2. Copies `scaffold/ddev/*` to `.ddev/`: the commands `ddev phpcs`, `phpcbf`, `phpstan`, `phpunit` and `dr`,
    and the [sanitize hook](#database-sanitization). Adds `fail_on_hook_fail: true` to `.ddev/config.yaml`
    unless it is already set or the project has other DDEV hooks.
 3. Composer: Drush, `vlucas/phpdotenv`, `drupal/ai_best_practices` and `drupal/core-dev` (matching the installed
    `drupal/core-recommended` major version). The company's own skills are not installed with Composer: they come
    from the Happiness organisation on claude.ai.
-4. Maps the scaffold files into the project root (`gitignore` becomes `.gitignore`) via `extra.drupal-scaffold.file-mapping`
-   (`replace` mode, `overwrite: false`) and runs `ddev composer drupal:scaffold`. On a new site, the scaffolded
-   `.gitignore` is written first and keeps any rules a Composer plugin added. If the project already
-   had a `.gitignore`, it adds `/phpcs.xml`, `/phpstan.neon` and `/phpunit.xml` to it, except files the
-   project already commits, `/.env.local` and `/web/sites/*/settings.local.php`.
+4. On a new site, writes `.gitignore` from `scaffold/gitignore`, keeping any rules a Composer plugin added.
+   If the project already had a `.gitignore`, it adds `/phpcs.xml`, `/phpstan.neon` and `/phpunit.xml` to
+   it, except files the project already commits, and `/.env.local`, `/web/sites/*/settings.local.php` and
+   `/web/ref.txt`.
 5. Sets `config_sync_directory` to `../config/sync` in `settings.php` (when `settings.ddev.php` exists),
    above the `settings.local.php` include so that `settings.local.php` can override it, and enables that
    include, unless it is already enabled.
@@ -52,7 +52,7 @@ Set `SCAFFOLD_URL` to fetch scaffold files from another location when piping fro
 7. Warns when a `settings.php` is ignored by git or sets `hash_salt` or a database password, and when
    `.env.local` or a `settings.local.php` is tracked by git.
 8. Adds the [branch workflow](docs/workflow.md): `.github/pull_request_template.md`, the workflows
-   `.github/workflows/no-dev-merges.yml` and `reset-dev.yml`, and its block in `AGENTS.md`. Writes
+   `.github/workflows/no-dev-merges.yml`, `qa.yml` and `reset-dev.yml`, and its block in `AGENTS.md`. Writes
    `happiness.just`, the shared `just` recipes, and a `justfile` that imports it.
 9. Creates `config/sync`, `modules/custom` and `themes/custom`, with a `.gitkeep` in each one that is empty.
 

@@ -29,7 +29,7 @@
 .phpunit.result.cache
 .phpunit.cache/
 
-# Scaffolded testing config (managed via assets/scaffold)
+# Local overrides of the code check configuration (the *.dist files are committed)
 /phpcs.xml
 /phpstan.neon
 /phpunit.xml
