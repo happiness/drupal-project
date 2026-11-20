@@ -13,6 +13,36 @@ ddev composer config allow-plugins.dealerdirect/phpcodesniffer-composer-installe
 curl -fsSL https://raw.githubusercontent.com/happiness/drupal-project/main/setup.sh | bash
 ```
 
+Existing files are left alone, so an older project needs some clean-up afterwards. Commit each
+step on its own, on a ticket branch.
+
+1. **Old scaffolded check configuration.** Many older projects scaffold `phpcs.xml`, `phpstan.neon` and
+   `phpunit.xml` from `assets/scaffold/` through `drupal-scaffold` in `composer.json`, with
+   `"overwrite": false`. The copy is created once and then drifts from what CI uses. Remove those
+   `[project-root]/...` entries from `extra.drupal-scaffold.file-mapping` (and `assets/scaffold/` files that
+   nothing else uses), then run `ddev composer update --lock`. Delete the project's local `phpcs.xml`,
+   `phpstan.neon` and `phpunit.xml`, or turn them into overrides that reference the `.dist` file
+   (`<rule ref="./phpcs.xml.dist"/>` and `includes: - phpstan.neon.dist`). The tools read `phpcs.xml` and
+   `phpstan.neon` before the `.dist` file, so an old copy wins and nothing is shared. Tell the team to do the same
+   locally. If the project already committed its own `phpcs.xml.dist` or `phpstan.neon.dist`, `setup.sh` keeps it:
+   compare it with `scaffold/` and keep the project's rules only where they differ on purpose.
+2. **The `justfile`.** An existing `justfile` is kept. Add `import 'happiness.just'` (and `import 'deploy.just'` if
+   the site uses the GitHub branch and release flow) and remove its own recipes of the same names: just doesn't
+   allow a recipe in both files. Keep the site's other recipes.
+3. **Sites that don't use the GitHub flow**, for example one that deploys with DeployHQ: leave out the
+   `deploy.just` import, and delete the workflows `no-dev-merges.yml`, `reset-dev.yml`, `deploy-dev.yml` and
+   `deploy-prod.yml` in `.github/workflows/`, `deploy.php`, and the happiness block in `AGENTS.md`. `setup.sh`
+   writes missing files again on a later run, so delete them again after one.
+4. **Old DDEV commands.** Earlier versions of `setup.sh` copied `phpcs`, `phpcbf`, `phpstan`, `phpunit` and `dr`
+   to `.ddev/commands/web/`. The `justfile` recipes `cs`, `fix`, `stan`, `test` and `dr` replace them, so delete
+   those files and update any documentation that mentions `ddev phpcs` and the like.
+5. **Many existing violations.** Add a baseline instead of fixing everything at once, so CI can block on new
+   ones. For PHPStan: `ddev exec vendor/bin/phpstan analyse --generate-baseline` and include
+   `phpstan-baseline.neon` from `phpstan.neon.dist`. For phpcs: require the dev dependency
+   `digitalrevolution/php-codesniffer-baseline`, allow it under `config.allow-plugins` and commit the generated
+   `phpcs.baseline.xml`. PHPStan reports baseline entries that no longer match, phpcs doesn't, so regenerate the
+   phpcs baseline now and then.
+
 ## Usage new site
 
 ```sh
@@ -32,8 +62,7 @@ Set `SCAFFOLD_URL` to fetch scaffold files from another location when piping fro
 1. Writes the code checks' configuration to the project root as `phpcs.xml.dist`, `phpstan.neon.dist` and
    `phpunit.xml.dist` (with the project's DDEV URL), to be committed: the tools and CI's `qa` check read them.
    `phpcs.xml`, `phpstan.neon` and `phpunit.xml` stay free for ignored local overrides.
-2. Copies `scaffold/ddev/*` to `.ddev/`: the commands `ddev phpcs`, `phpcbf`, `phpstan`, `phpunit` and `dr`,
-   and the [sanitize hook](#database-sanitization). Adds `fail_on_hook_fail: true` to `.ddev/config.yaml`
+2. Copies `scaffold/ddev/*` to `.ddev/`: the [sanitize hook](#database-sanitization). Adds `fail_on_hook_fail: true` to `.ddev/config.yaml`
    unless it is already set or the project has other DDEV hooks.
 3. Composer: Drush, `vlucas/phpdotenv`, `drupal/ai_best_practices` and `drupal/core-dev` (matching the installed
    `drupal/core-recommended` major version). The company's own skills are not installed with Composer: they come

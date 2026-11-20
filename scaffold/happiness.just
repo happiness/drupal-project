@@ -27,19 +27,23 @@ check: cs stan test
 
 # Check the code style; pass paths to limit the scope (just cs web/modules/custom/foo)
 cs *args:
-    ddev phpcs {{ args }}
+    ddev exec vendor/bin/phpcs {{ args }}
 
 # Fix the code style automatically
 fix *args:
-    ddev phpcbf {{ args }}
+    ddev exec vendor/bin/phpcbf {{ args }}
 
 # PHPStan
 stan *args:
-    ddev phpstan {{ args }}
+    ddev exec vendor/bin/phpstan {{ args }}
 
-# PHPUnit; extra arguments go to it (just test --filter FooTest)
+# PHPUnit, from the docroot as Drupal's functional tests need; uses phpunit.xml if it exists, else phpunit.xml.dist (just test --filter FooTest)
 test *args:
-    ddev phpunit {{ args }}
+    ddev exec 'config=/var/www/html/phpunit.xml; [ -f "$config" ] || config=/var/www/html/phpunit.xml.dist; cd /var/www/html/web && ../vendor/bin/phpunit --configuration "$config" {{ args }}'
+
+# Run the Drupal CLI (just dr list)
+dr *args:
+    ddev exec vendor/bin/dr {{ args }}
 
 # Run a Drush command (just drush status)
 drush *args:

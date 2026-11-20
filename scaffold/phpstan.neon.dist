@@ -1,4 +1,4 @@
-# Committed and used by CI (the qa check) and by `ddev phpstan`. For local changes,
+# Committed and used by CI (the qa check) and by `just stan`. For local changes,
 # write an ignored phpstan.neon that starts with: includes: [phpstan.neon.dist]
 parameters:
     level: 2

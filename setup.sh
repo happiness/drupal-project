@@ -19,7 +19,6 @@ set -euo pipefail
 QA_FILES=(phpcs.xml.dist phpstan.neon.dist phpunit.xml.dist)
 # Paths relative to .ddev/ (and to scaffold/ddev/).
 DDEV_FILES=(
-  commands/web/dr commands/web/phpcbf commands/web/phpcs commands/web/phpstan commands/web/phpunit
   config.sanitize.yaml sanitize/sanitize.sh sanitize/sanitize.php
 )
 SCAFFOLD_URL="${SCAFFOLD_URL:-https://raw.githubusercontent.com/happiness/drupal-project/main/scaffold}"
@@ -379,7 +378,7 @@ main() {
 Done. You can delete this script now.
   ddev launch          open the site
   ddev drush uli       one-time login link
-  ddev phpcs | phpcbf | phpstan | phpunit | dr
+  just                 list the recipes (cs, fix, stan, test, dr, ...)
   ddev import-db       imports are sanitized (every password is "password")
 MSG
 }

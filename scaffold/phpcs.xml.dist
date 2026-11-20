@@ -2,7 +2,7 @@
 <ruleset name="DrupalCustom">
   <description>Checks the code for Drupal standards and best practices.</description>
   <!--
-    Committed and used by CI (the qa check) and by `ddev phpcs`. For local changes,
+    Committed and used by CI (the qa check) and by `just cs`. For local changes,
     write an ignored phpcs.xml that starts with <rule ref="./phpcs.xml.dist"/>.
   -->
 
