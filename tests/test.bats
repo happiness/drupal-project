@@ -181,7 +181,9 @@ teardown() {
   assert_file_contains deploy.php "require __DIR__ . '/.drupal-project/deployer/drupal.php';"
   assert_file_exists .github/workflows/reset-dev.yml
   assert_file_contains justfile "^import 'happiness.just'$"
+  assert_file_contains justfile "^import 'deploy.just'$"
   assert_file_exists happiness.just
+  assert_file_exists deploy.just
   run grep -c '^<!-- happiness:start -->$' AGENTS.md
   assert_output "1"
   assert_file_contains AGENTS.md '^<!-- ai-best-practices:start -->'

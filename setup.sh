@@ -349,15 +349,21 @@ main() {
     fetch deploy.php deploy.php
     echo "  write deploy.php (fill in the hosts)"
   fi
-  # happiness.just is managed here: always the latest. The justfile is the site's own.
+  # happiness.just and deploy.just are managed here: always the latest. The justfile is the site's own.
   fetch happiness.just happiness.just
   echo "  write happiness.just"
+  fetch deploy.just deploy.just
+  echo "  write deploy.just"
   if [[ ! -e justfile && ! -e Justfile && ! -e .justfile ]]; then
     fetch justfile justfile
     echo "  write justfile"
-  elif ! grep -qE "^import +['\"]happiness\.just['\"]" justfile Justfile .justfile 2>/dev/null; then
-    echo "  warn  The justfile doesn't import happiness.just. Add \"import 'happiness.just'\" to it" \
-      "(and remove its own recipes of the same names), see docs/workflow.md."
+  else
+    for f in happiness.just deploy.just; do
+      if ! grep -qE "^import +['\"]${f//./\\.}['\"]" justfile Justfile .justfile 2>/dev/null; then
+        echo "  warn  The justfile doesn't import $f. Add \"import '$f'\" to it" \
+          "(and remove its own recipes of the same names), see docs/workflow.md."
+      fi
+    done
   fi
   update_agents_md
   command -v just >/dev/null || echo "  warn  just is not installed: see docs/workflow.md."

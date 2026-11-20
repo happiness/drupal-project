@@ -121,10 +121,13 @@ The workflows' logic lives in this repository (`.github/workflows/` and
 ## just
 
 Every site has a `justfile` that imports `happiness.just`, the recipes all sites
-share: `just` lists them. `setup.sh` keeps `happiness.just` up to date, so change it
-here (`scaffold/happiness.just`). The site's own recipes go in its `justfile`. An
-existing `justfile` is left alone: add `import 'happiness.just'` to it and remove
-its recipes of the same names.
+share, and `deploy.just`, the recipes of the branch and release flow (`dev`,
+`release` and `reset-dev`, which need git and `gh`): `just` lists them. `setup.sh`
+keeps both up to date, so change them here (`scaffold/happiness.just` and
+`scaffold/deploy.just`). The site's own recipes go in its `justfile`. A site that
+doesn't use this flow leaves out the `deploy.just` import. An existing `justfile` is
+left alone: add the imports to it and remove its recipes of the same names. just
+doesn't allow a recipe to be defined in both the importing and the imported file.
 
 Install just with `sudo apt install just` (Debian and Ubuntu), `brew install just` or
 `cargo install just`.

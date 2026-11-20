@@ -55,10 +55,11 @@ Set `SCAFFOLD_URL` to fetch scaffold files from another location when piping fro
    `.github/workflows/no-dev-merges.yml`, `qa.yml` and `reset-dev.yml`, and its block in `AGENTS.md`; and
    for [deploys](docs/release.md), `deploy.php` with the site's hosts to fill in and the workflows
    `deploy-dev.yml` and `deploy-prod.yml`. Writes
-   `happiness.just`, the shared `just` recipes, and a `justfile` that imports it.
+   `happiness.just`, the shared `just` recipes, `deploy.just`, the recipes of the branch and release flow,
+   and a `justfile` that imports them.
 9. Creates `config/sync`, `modules/custom` and `themes/custom`, with a `.gitkeep` in each one that is empty.
 
-Existing files are never overwritten, except the files this repository manages: `happiness.just` and
+Existing files are never overwritten, except the files this repository manages: `happiness.just`, `deploy.just` and
 the workflow block in `AGENTS.md` are brought up to date on every run.
 
 `github-setup.sh` sets up the site's repository on GitHub: its maintainers team, permissions and
