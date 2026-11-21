@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Committed and used by CI (the qa check, unit and kernel tests) and by `ddev phpunit`.
+  Committed and used by CI (the qa check, unit and kernel tests) and by `just test`.
   For local changes, copy it to the ignored phpunit.xml. The values below are DDEV's:
   an environment variable of the same name wins, as CI's SIMPLETEST_DB does.
 -->

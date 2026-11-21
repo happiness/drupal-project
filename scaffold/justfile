@@ -1,6 +1,9 @@
 # Project tasks, a thin layer over DDEV. `just` lists the recipes.
 #
-# The shared recipes come from happiness.just, which setup.sh from
+# The shared recipes come from happiness.just and deploy.just, which setup.sh from
 # happiness/drupal-project keeps up to date. Add this site's own recipes below.
+# Remove the deploy.just import if the site doesn't use the GitHub branch and
+# release flow.
 
 import 'happiness.just'
+import 'deploy.just'
