@@ -24,8 +24,10 @@ fingerprint, and why sites like that one stop when their salt changes.
    can't change what the site does, only the values it uses. It is never committed and
    never deployed. `.env.example` is committed and lists every key.
 3. **Vaultwarden holds the master copy of each server's `.env.local`.** There is one item
-   per site and environment, named `<site> <ENV> .env.local`, with the whole file in
-   its note. The file on the server is written from that item, never edited on its own.
+   per site and environment, named `<host> - .env.local`, where `<host>` is the
+   environment's host name: `happiness.se` for PROD, `test.happiness.se` for TEST. The
+   whole file is in the item's note. The file on the server is written from that item,
+   never edited on its own.
 4. **Every change to a server's `.env.local` is noted in the client's ticket**: what
    changed, why and when. Never the value. This is the only history the secrets have.
 5. **Environments differ by `DRUPAL_ENV` only** (`dev`, `test` or `prod`). `settings.php`
@@ -106,7 +108,7 @@ directory and is linked into each release. The deploy never writes or deletes it
 
 ### Creating .env.local
 
-1. Create the Vaultwarden item `<site> <ENV> .env.local` from `.env.example`, with the
+1. Create the Vaultwarden item `<host> - .env.local` from `.env.example`, with the
    environment's values. For a new site, generate the salt once with
    `ddev drush php:eval 'echo \Drupal\Component\Utility\Crypt::randomBytesBase64(55), PHP_EOL;'`.
    Each environment gets its own salt.
